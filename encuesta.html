@@ -1,0 +1,110 @@
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+  // ─── CONFIGURACIÓN DE SUPABASE ───
+  const SUPABASE_URL = 'https://TU_PROYECTO.supabase.co'; // REEMPLAZAR
+  const SUPABASE_KEY = 'TU_ANON_KEY'; // REEMPLAZAR
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  const USUARIO = decodeURIComponent(new URLSearchParams(window.location.search).get("u") || "encuesta");
+
+  let planSeleccionado   = null;
+  let seguroSeleccionado = null;
+
+  function soloDigitos(id, max) {
+    const el = document.getElementById(id);
+    el.addEventListener("input",   () => { el.value = el.value.replace(/\D/g, "").slice(0, max); });
+    el.addEventListener("keydown", (e) => {
+      if (!["Backspace","Delete","ArrowLeft","ArrowRight","Tab","Home","End"].includes(e.key) && !/^\d$/.test(e.key))
+        e.preventDefault();
+    });
+  }
+  soloDigitos("s-telefono", 9);
+  soloDigitos("s-edad", 3);
+
+  ["s-nombre","s-telefono","s-edad"].forEach(id => {
+    document.getElementById(id).addEventListener("input", () => {
+      document.getElementById(id).classList.remove("invalid");
+      document.getElementById("err-" + id).textContent = "";
+    });
+  });
+
+  function selectOpcion(campo, valor, btn) {
+    const grupoId = campo === "plan" ? "opts-plan" : "opts-seguro";
+    document.querySelectorAll("#" + grupoId + " .option-card").forEach(c => c.classList.remove("selected"));
+    btn.classList.add("selected");
+    if (campo === "plan")   planSeleccionado   = valor;
+    if (campo === "seguro") seguroSeleccionado = valor;
+    document.getElementById("err-" + campo).textContent = "";
+  }
+
+  function validar() {
+    let ok = true;
+    const nombre = document.getElementById("s-nombre").value.trim();
+    if (nombre.length < 3) {
+      document.getElementById("s-nombre").classList.add("invalid");
+      document.getElementById("err-s-nombre").textContent = "Ingresa tu nombre completo";
+      ok = false;
+    }
+    const tel = document.getElementById("s-telefono").value;
+    if (!/^\d{9}$/.test(tel)) {
+      document.getElementById("s-telefono").classList.add("invalid");
+      document.getElementById("err-s-telefono").textContent = "El teléfono debe tener exactamente 9 dígitos";
+      ok = false;
+    }
+    const edad = parseInt(document.getElementById("s-edad").value, 10);
+    if (!edad || edad < 1 || edad > 120) {
+      document.getElementById("s-edad").classList.add("invalid");
+      document.getElementById("err-s-edad").textContent = "Ingresa una edad válida (1–120)";
+      ok = false;
+    }
+    if (!planSeleccionado) { document.getElementById("err-plan").textContent = "Por favor selecciona una opción"; ok = false; }
+    if (!seguroSeleccionado) { document.getElementById("err-seguro").textContent = "Por favor selecciona una opción"; ok = false; }
+    return ok;
+  }
+
+  function fechaLima() {
+    const now   = new Date();
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Lima", day: "2-digit", month: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true, }).formatToParts(now);
+    const get = t => parts.find(p => p.type === t)?.value ?? "";
+    return `${get("day")}/${get("month")}/${get("year")} ${get("hour")}:${get("minute")} ${get("dayPeriod").toLowerCase()}`;
+  }
+
+  async function enviarEncuesta() {
+    if (!validar()) {
+      const firstErr = document.querySelector(".invalid");
+      if (firstErr) firstErr.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    const btn = document.getElementById("btn-submit");
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner"></span> Enviando...`;
+
+    const datos = {
+      usuario:     USUARIO,
+      fecha:       fechaLima(),
+      nombre:      document.getElementById("s-nombre").value.trim(),
+      telefono:    document.getElementById("s-telefono").value,
+      edad:        document.getElementById("s-edad").value,
+      producto:    "",
+      temperatura: "",
+      referencia:  "",
+      comentarios: `Plan de salud: ${planSeleccionado}. Seguro oncológico: ${seguroSeleccionado}.`,
+    };
+
+    try {
+      const { error } = await supabase.from('leads').insert([datos]);
+      if (error) throw error;
+
+      document.getElementById("survey-body").style.display   = "none";
+      document.getElementById("screen-success").style.display = "block";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+
+    } catch (err) {
+      btn.disabled = false;
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> ¡Quiero mi asesoría gratuita!`;
+      alert("Hubo un error al enviar. Por favor intenta de nuevo.");
+    }
+  }
+</script>
