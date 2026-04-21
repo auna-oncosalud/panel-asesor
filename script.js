@@ -5,7 +5,9 @@
 // ─── CONFIGURACIÓN DE SUPABASE ───
 const SUPABASE_URL = 'https://xqjhywbhwrmffkmvkxki.supabase.co'; // REEMPLAZAR
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxamh5d2Jod3JtZmZrbXZreGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTQzNzgsImV4cCI6MjA5MjM3MDM3OH0.4RRSC4gOCnZTuRC0HI6JEhr301xFRiFmYhFpiKxHG2M'; // REEMPLAZAR
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// SOLUCIÓN AL ERROR: Cambiamos el nombre a supabaseClient para que no choque con el CDN
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ─── Todos los leads (cache para búsqueda) ───
 let allLeads    = [];
@@ -97,7 +99,7 @@ async function login() {
   }
 
   try {
-    const { data: usuario, error } = await supabase
+    const { data: usuario, error } = await supabaseClient
       .from('usuarios')
       .select('*')
       .eq('usuario', userIn)
@@ -357,7 +359,7 @@ document.getElementById("barrido-form").addEventListener("submit", async functio
   };
 
   try {
-    const { error } = await supabase.from('leads').insert([datos]);
+    const { error } = await supabaseClient.from('leads').insert([datos]);
     if (error) throw error;
 
     window._ultimoLead = {
@@ -419,8 +421,7 @@ async function verRegistros() {
   const miUser = leerSesion()?.usuario;
 
   try {
-    // Fetch base de datos completa o filtrada según rol
-    let query = supabase.from('leads').select('*');
+    let query = supabaseClient.from('leads').select('*');
     if (rol !== "Administrador") {
       query = query.eq('usuario', miUser);
     }
@@ -430,7 +431,6 @@ async function verRegistros() {
 
     allLeads = leadsData || [];
 
-    // Ordenar de más nuevo a más antiguo
     allLeads.sort((a, b) => {
       const da = parseFechaParaFiltro(a.fecha);
       const db = parseFechaParaFiltro(b.fecha);
@@ -874,7 +874,7 @@ function abrirEditModal(idx) {
   const lead = allLeads[idx];
   if (!lead) return;
 
-  document.getElementById("edit-row-index").value = lead.id; // Usamos el ID UUID de Supabase
+  document.getElementById("edit-row-index").value   = lead.id; 
   document.getElementById("edit-nombre").value      = lead.nombre      || "";
   document.getElementById("edit-telefono").value    = String(lead.telefono || "");
   document.getElementById("edit-edad").value        = lead.edad        || "";
@@ -928,7 +928,7 @@ function validateEditForm() {
 async function guardarEdicion() {
   if (!validateEditForm()) return;
 
-  const leadId = document.getElementById("edit-row-index").value; // UUID
+  const leadId = document.getElementById("edit-row-index").value;
   const leadIdx = allLeads.findIndex(l => l.id === leadId);
   if (leadIdx === -1) return;
 
@@ -950,7 +950,7 @@ async function guardarEdicion() {
   };
 
   try {
-    const { error } = await supabase.from('leads').update(datosEditados).eq('id', leadId);
+    const { error } = await supabaseClient.from('leads').update(datosEditados).eq('id', leadId);
     if (error) throw error;
 
     allLeads[leadIdx] = { ...allLeads[leadIdx], ...datosEditados };
@@ -1851,7 +1851,7 @@ async function abrirWaModal(lead) {
 
   const usuario = leerSesion()?.usuario || "";
   try {
-    const { data: dbUser } = await supabase.from('usuarios').select('mensaje_whatsapp').eq('usuario', usuario).single();
+    const { data: dbUser } = await supabaseClient.from('usuarios').select('mensaje_whatsapp').eq('usuario', usuario).single();
     _waMensajeBase = dbUser?.mensaje_whatsapp || "";
   } catch {
     _waMensajeBase = "";
@@ -1912,7 +1912,7 @@ async function guardarMensajeWa() {
   _waMensajeBase = mensaje;
 
   try {
-    const { error } = await supabase.from('usuarios').update({ mensaje_whatsapp: mensaje }).eq('usuario', usuario);
+    const { error } = await supabaseClient.from('usuarios').update({ mensaje_whatsapp: mensaje }).eq('usuario', usuario);
     if (error) throw error;
     mostrarModoPreview();
   } catch {
@@ -2039,12 +2039,12 @@ async function proy_init() {
   document.getElementById("proy-admin-fecha").textContent = `Proyecciones del día — ${hoy}`;
 
   try {
-    const { data: proyecciones } = await supabase.from('proyeccion').select('*').eq('dia', hoy);
+    const { data: proyecciones } = await supabaseClient.from('proyeccion').select('*').eq('dia', hoy);
 
     document.getElementById("proy-loading").style.display = "none";
 
     if (esAdmin) {
-      const { data: todosUsuarios } = await supabase.from('usuarios').select('*');
+      const { data: todosUsuarios } = await supabaseClient.from('usuarios').select('*');
       document.getElementById("proy-admin-view").style.display = "block";
       proy_renderAdmin(proyecciones || [], todosUsuarios || []);
     } else {
@@ -2206,10 +2206,10 @@ async function proy_guardar() {
 
   try {
     // Borramos la proyección anterior de este usuario para el día de hoy
-    await supabase.from('proyeccion').delete().eq('usuario', usuario).eq('dia', fecha);
+    await supabaseClient.from('proyeccion').delete().eq('usuario', usuario).eq('dia', fecha);
     
     // Insertamos las nuevas filas
-    const { error } = await supabase.from('proyeccion').insert(filas);
+    const { error } = await supabaseClient.from('proyeccion').insert(filas);
     if (error) throw error;
 
     const toast = document.getElementById("toast");
