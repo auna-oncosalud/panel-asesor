@@ -3,8 +3,8 @@
    ══════════════════════════════════════════════ */
 
 // ─── CONFIGURACIÓN DE SUPABASE ───
-const SUPABASE_URL = 'https://TU_PROYECTO.supabase.co'; // REEMPLAZAR CON TU URL
-const SUPABASE_KEY = 'TU_ANON_KEY'; // REEMPLAZAR CON TU ANON KEY
+const SUPABASE_URL = 'https://xqjhywbhwrmffkmvkxki.supabase.co'; // REEMPLAZAR CON TU URL
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxamh5d2Jod3JtZmZrbXZreGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTQzNzgsImV4cCI6MjA5MjM3MDM3OH0.4RRSC4gOCnZTuRC0HI6JEhr301xFRiFmYhFpiKxHG2M'; // REEMPLAZAR CON TU ANON KEY
 
 // Instancia de Supabase (usamos supabaseClient para evitar conflictos con el CDN)
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
