@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════
-   AUNA — PORTAL ASESORES | script.js (Supabase Pro + UX Full)
+   AUNA — PORTAL ASESORES | script.js (Supabase Pro + Realtime Full)
    ══════════════════════════════════════════════ */
 
 // ─── CONFIGURACIÓN DE SUPABASE ───
@@ -12,7 +12,7 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let allLeads        = [];
 let currentPage     = 1;
 const PAGE_SIZE     = 20;
-let realtimeChannel = null;
+let realtimeChannel = null; // Canal para WebSockets
 
 /* ══════════════════════════════════════════════
    SESIÓN — localStorage con expiración 15 min
@@ -67,15 +67,28 @@ document.addEventListener("keydown",    () => leerSesion());
 document.addEventListener("touchstart", () => leerSesion());
 
 /* ══════════════════════════════════════════════
-   NOTIFICACIÓN SUTIL EN TIEMPO REAL
+   NOTIFICACIÓN SUTIL EN TIEMPO REAL (Proyecciones)
 ══════════════════════════════════════════════ */
-function mostrarToastRealtime(mensaje) {
-  let toast = document.getElementById("rt-toast");
-  if (!toast) {
-    toast = document.createElement('div');
-    toast.id = 'rt-toast';
-    document.body.appendChild(toast);
+const rtStyle = document.createElement('style');
+rtStyle.innerHTML = `
+  #rt-toast {
+    position: fixed; bottom: 5.5rem; right: 2rem;
+    background: var(--blue-700); color: white;
+    padding: 12px 20px; border-radius: var(--radius-md);
+    font-weight: 600; font-size: 0.9rem;
+    display: none; align-items: center; gap: 10px;
+    box-shadow: 0 8px 24px rgba(0,61,153,0.4);
+    z-index: 999; border: 1px solid var(--blue-600);
   }
+`;
+document.head.appendChild(rtStyle);
+
+const rtToast = document.createElement('div');
+rtToast.id = 'rt-toast';
+document.body.appendChild(rtToast);
+
+function mostrarToastRealtime(mensaje) {
+  const toast = document.getElementById("rt-toast");
   toast.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px;flex-shrink:0"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> ${mensaje}`;
   toast.style.display = "flex";
   toast.style.animation = "slideInRight 0.3s ease";
@@ -86,48 +99,71 @@ function mostrarToastRealtime(mensaje) {
 }
 
 /* ══════════════════════════════════════════════
-   SISTEMA DE TIEMPO REAL (WebSockets)
+   SISTEMA DE TIEMPO REAL (WEBSOCKETS FULL)
 ══════════════════════════════════════════════ */
 function iniciarSuscripcionTiempoReal() {
   const miRol = leerSesion()?.rol;
   const miUsuario = leerSesion()?.usuario;
 
+  // Cerramos conexión previa por seguridad
   if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
 
+  // Nos suscribimos a un solo canal global para optimizar conexiones
   realtimeChannel = supabaseClient.channel('auna-db-changes')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'proyeccion' }, (payload) => {
+    // 1. Escuchar la tabla PROYECCIÓN
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'proyeccion' },
+      (payload) => {
         const usuarioModificado = payload.new?.usuario || payload.old?.usuario;
+        
+        // Si es Admin y el cambio es de un Asesor, notificamos y recargamos
         if (miRol === "Administrador" && usuarioModificado && usuarioModificado !== miUsuario) {
           const nombreAsesor = _proy_usuariosAdmin.find(u => u.usuario === usuarioModificado)?.agente || usuarioModificado;
           mostrarToastRealtime(`<strong>${nombreAsesor}</strong> ha actualizado su proyección`);
           proy_recargarSilencioso();
-        } else if (usuarioModificado === miUsuario && payload.new?.usuario) {
+        } 
+        // Si el asesor cambió su propia data (sincronización multi-dispositivo)
+        else if (usuarioModificado === miUsuario && payload.new?.usuario) {
           proy_recargarSilencioso();
         }
       }
     )
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, (payload) => {
+    // 2. Escuchar la tabla LEADS
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'leads' },
+      (payload) => {
         const usuarioModificado = payload.new?.usuario || payload.old?.usuario;
+        
+        // SIN notificaciones. Recarga silenciosa de tablas y gráficas
         if (miRol === "Administrador") {
-          leads_recargarSilencioso();
+          leads_recargarSilencioso(); // El Admin actualiza todo siempre
         } else if (usuarioModificado === miUsuario) {
-          leads_recargarSilencioso();
+          leads_recargarSilencioso(); // El Asesor solo actualiza si es su propio lead
         }
       }
     )
     .subscribe();
 }
 
+// ── Recarga Silenciosa de LEADS (Registros y Estadísticas) ──
 async function leads_recargarSilencioso() {
   const rol    = leerSesion()?.rol;
   const miUser = leerSesion()?.usuario;
+
   try {
     let query = supabaseClient.from('leads').select('*').limit(10000);
-    if (rol !== "Administrador") query = query.eq('usuario', miUser);
-    const { data: leadsData } = await query;
-    if (!leadsData) return;
+    if (rol !== "Administrador") {
+      query = query.eq('usuario', miUser);
+    }
     
-    allLeads = leadsData;
+    const { data: leadsData, error } = await query;
+    if (error) throw error;
+
+    allLeads = leadsData || [];
+
+    // Re-ordenamos por fecha más reciente
     allLeads.sort((a, b) => {
       const da = parseFechaParaFiltro(a.fecha);
       const db = parseFechaParaFiltro(b.fecha);
@@ -137,26 +173,34 @@ async function leads_recargarSilencioso() {
       return 0;
     });
 
+    // Actualizamos UI solo si la vista correspondiente está activa
     const vistaLista = document.getElementById("vista-lista");
     const vistaStats = document.getElementById("vista-stats");
 
     if (vistaLista && vistaLista.style.display !== "none") {
-      const elSub = document.getElementById("records-sub");
-      if (elSub) elSub.textContent = `${allLeads.length} lead${allLeads.length !== 1 ? "s" : ""} encontrado${allLeads.length !== 1 ? "s" : ""}`;
-      aplicarFiltros(true); 
+      document.getElementById("records-sub").textContent =
+        `${allLeads.length} lead${allLeads.length !== 1 ? "s" : ""} encontrado${allLeads.length !== 1 ? "s" : ""}`;
+      aplicarFiltros(); // Aplica filtros vigentes y re-dibuja la tabla
     }
+
     if (vistaStats && vistaStats.style.display === "block") {
-      renderStats(); 
+      renderStats(); // Re-dibuja las gráficas y KPIs
     }
-  } catch (error) { console.error("Error recarga leads:", error); }
+
+  } catch (error) {
+    console.error("Error en recarga silenciosa de leads:", error);
+  }
 }
 
+// ── Recarga Silenciosa de PROYECCIONES ──
 async function proy_recargarSilencioso() {
   const hoy = proy_fechaHoyLima();
   const rol = leerSesion()?.rol;
   const miUsuario = leerSesion()?.usuario;
+
   try {
     const { data: proyecciones } = await supabaseClient.from('proyeccion').select('*').eq('dia', hoy);
+    
     if (rol === "Administrador") {
       proy_renderAdmin(proyecciones || [], _proy_usuariosAdmin);
     } else {
@@ -165,7 +209,9 @@ async function proy_recargarSilencioso() {
         proy_renderPreview(misFilas);
       }
     }
-  } catch (error) { console.error("Error recarga proyección:", error); }
+  } catch (error) {
+    console.error("Error en recarga silenciosa de proyección:", error);
+  }
 }
 
 /* ══════════════════════════════════════════════
@@ -238,16 +284,6 @@ function showLoginError(msg) {
   el.style.animation = "fadeUp 0.3s ease";
 }
 
-// FORMATO DE TELÉFONO VISUAL CON ESPACIOS
-function formatPhone(inputElement) {
-  let val = inputElement.value.replace(/\D/g, ""); // strip no digitos
-  let formatted = "";
-  if (val.length > 0) formatted += val.substring(0, 3);
-  if (val.length > 3) formatted += " " + val.substring(3, 6);
-  if (val.length > 6) formatted += " " + val.substring(6, 9);
-  inputElement.value = formatted;
-}
-
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("password").addEventListener("keydown", (e) => {
     if (e.key === "Enter") login();
@@ -256,27 +292,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.key === "Enter") document.getElementById("password").focus();
   });
 
-  ["telefono", "edit-telefono"].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.setAttribute("maxlength", "11");
-      el.setAttribute("inputmode", "numeric");
-      el.addEventListener("input", function() { formatPhone(this); });
-      el.addEventListener("keydown", (e) => {
-        const allowed = ["Backspace","Delete","ArrowLeft","ArrowRight","Tab","Home","End"];
-        if (!allowed.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault();
-      });
-    }
-  });
-
-  ["edad", "edit-edad"].forEach((id) => {
+  ["telefono", "edit-telefono", "edad", "edit-edad"].forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
-    el.setAttribute("maxlength", "3");
+    const isTel = id.includes("telefono");
+    el.setAttribute("maxlength", isTel ? "9" : "3");
     el.setAttribute("inputmode", "numeric");
-    el.addEventListener("input", () => {
-      el.value = el.value.replace(/\D/g, "").slice(0, 3);
-    });
+    el.addEventListener("input", () => { el.value = el.value.replace(/\D/g, "").slice(0, isTel ? 9 : 3); });
     el.addEventListener("keydown", (e) => {
       const allowed = ["Backspace","Delete","ArrowLeft","ArrowRight","Tab","Home","End"];
       if (!allowed.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault();
@@ -295,9 +317,9 @@ function mostrarPantallaFormulario(user) {
   document.getElementById("topbar-title").textContent    = `Formulario Barrido`;
   document.getElementById("user-name-chip").textContent  = nombre;
   document.getElementById("user-avatar").textContent     = nombre.charAt(0).toUpperCase();
-  document.getElementById("form-title").textContent      = `Formulario Barrido — ${nombre}`;
+  document.getElementById("form-title").textContent = `Formulario Barrido — ${nombre}`;
 
-  // Iniciar WebSockets al entrar
+  // Activar tiempo real
   iniciarSuscripcionTiempoReal();
 }
 
@@ -448,7 +470,6 @@ document.getElementById("barrido-form").addEventListener("submit", async functio
 
   setSubmitLoading(true);
 
-  // Sanitización de espacios en el teléfono antes de guardar en Supabase
   const datos = {
     usuario:     String(leerSesion()?.usuario),
     fecha:       (() => {
@@ -800,61 +821,43 @@ function ejecutarExportacion() {
     return;
   }
 
-  // Activar UI de carga en el botón del Modal
-  const btn = document.getElementById("btn-do-export");
-  if (btn) {
-    btn.disabled = true;
-    btn.querySelector(".btn-text").style.display = "none";
-    btn.querySelector(".btn-loader").style.display = "inline-flex";
-  }
+  const rol           = leerSesion()?.rol;
+  const mostrarAsesor = rol === "Administrador";
+  const usuario       = leerSesion()?.agente || leerSesion()?.usuario || "";
+  const filename      = (document.getElementById("export-filename").value.trim() || "Mis_Leads") + ".xlsx";
 
-  // Pequeño delay para que el navegador repinte el loader antes de congelarse armando el Excel
-  setTimeout(() => {
-    const rol           = leerSesion()?.rol;
-    const mostrarAsesor = rol === "Administrador";
-    const usuario       = leerSesion()?.agente || leerSesion()?.usuario || "";
-    const filename      = (document.getElementById("export-filename").value.trim() || "Mis_Leads") + ".xlsx";
+  const headers = ["Fecha", "Nombre", "Teléfono", "Edad", "Producto", "Temperatura", ...(mostrarAsesor ? ["Asesor"] : []), "Referencia", "Comentarios"];
 
-    const headers = ["Fecha", "Nombre", "Teléfono", "Edad", "Producto", "Temperatura", ...(mostrarAsesor ? ["Asesor"] : []), "Referencia", "Comentarios"];
+  const filas = datos.map(d => {
+    const row = {
+      "Fecha":        formatFecha(d.fecha),
+      "Nombre":       d.nombre || "",
+      "Teléfono":     String(d.telefono || ""),
+      "Edad":         d.edad || "",
+      "Producto":     d.producto || "",
+      "Temperatura":  d.temperatura || "",
+      "Referencia":   d.referencia || "",
+      "Comentarios":  d.comentarios || "",
+    };
+    if (mostrarAsesor) row["Asesor"] = d.usuario || "";
+    const ordered = {};
+    headers.forEach(h => { ordered[h] = row[h] ?? ""; });
+    return ordered;
+  });
 
-    const filas = datos.map(d => {
-      const row = {
-        "Fecha":        formatFecha(d.fecha),
-        "Nombre":       d.nombre || "",
-        "Teléfono":     String(d.telefono || ""),
-        "Edad":         d.edad || "",
-        "Producto":     d.producto || "",
-        "Temperatura":  d.temperatura || "",
-        "Referencia":   d.referencia || "",
-        "Comentarios":  d.comentarios || "",
-      };
-      if (mostrarAsesor) row["Asesor"] = d.usuario || "";
-      const ordered = {};
-      headers.forEach(h => { ordered[h] = row[h] ?? ""; });
-      return ordered;
-    });
+  const ws = XLSX.utils.json_to_sheet(filas, { header: headers });
+  ws["!cols"] = [
+    { wch: 22 }, { wch: 28 }, { wch: 14 }, { wch: 8  }, { wch: 18 }, { wch: 12 },
+    ...(mostrarAsesor ? [{ wch: 16 }] : []), { wch: 28 }, { wch: 36 },
+  ];
 
-    const ws = XLSX.utils.json_to_sheet(filas, { header: headers });
-    ws["!cols"] = [
-      { wch: 22 }, { wch: 28 }, { wch: 14 }, { wch: 8  }, { wch: 18 }, { wch: 12 },
-      ...(mostrarAsesor ? [{ wch: 16 }] : []), { wch: 28 }, { wch: 36 },
-    ];
+  const wb = XLSX.utils.book_new();
+  const sheetName = `Leads ${usuario}`.slice(0, 31); 
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, filename);
 
-    const wb = XLSX.utils.book_new();
-    const sheetName = `Leads ${usuario}`.slice(0, 31); 
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    XLSX.writeFile(wb, filename);
-
-    // Resetear botón y cerrar modal
-    if (btn) {
-      btn.disabled = false;
-      btn.querySelector(".btn-text").style.display = "inline-flex";
-      btn.querySelector(".btn-loader").style.display = "none";
-    }
-    
-    closeExportModal();
-    showToastExport(datos.length);
-  }, 100);
+  setTimeout(() => closeExportModal(), 300);
+  showToastExport(datos.length);
 }
 
 function showToastExport(count) {
@@ -917,7 +920,7 @@ function renderTable(datos, contenedor) {
     contenedor.innerHTML = `
       <div class="empty-state">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-        <p>Aún no tienes registros en el rango seleccionado.<br>¡Ve a la pestaña <strong>Nuevo Lead</strong> para empezar!</p>
+        <p>No hay registros que mostrar.</p>
       </div>`;
     return;
   }
@@ -1011,7 +1014,7 @@ function paginationRange(current, total) {
 
 function cambiarPagina(page) {
   currentPage = page;
-  aplicarFiltros(true); 
+  aplicarFiltros(true); // El true asegura que se respete la página actual al filtrar visualmente
   document.getElementById("tabla-registros").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -1022,11 +1025,7 @@ function abrirEditModal(idx) {
 
   document.getElementById("edit-row-index").value   = lead.id; 
   document.getElementById("edit-nombre").value      = String(lead.nombre || "");
-  
-  const editTelInput = document.getElementById("edit-telefono");
-  editTelInput.value = String(lead.telefono || "");
-  formatPhone(editTelInput);
-
+  document.getElementById("edit-telefono").value    = String(lead.telefono || "");
   document.getElementById("edit-edad").value        = String(lead.edad || "");
   document.getElementById("edit-producto").value    = String(lead.producto || "");
   document.getElementById("edit-temperatura").value = String(lead.temperatura || "");
@@ -2316,7 +2315,7 @@ function proy_renderAdmin(data, todosUsuarios = []) {
 
   const todosAsesores = [...new Set([ ...Object.keys(porAsesor), ...asesoresRegistrados ])];
 
-  let html = `<div class="admin-cards-grid">`;
+  let html = "";
   const enviaron    = todosAsesores.filter(a => porAsesor[a]);
   const noEnviaron  = todosAsesores.filter(a => !porAsesor[a] && a !== "—");
 
@@ -2325,35 +2324,16 @@ function proy_renderAdmin(data, todosUsuarios = []) {
     return;
   }
 
-  if (noEnviaron.length > 0) {
-    html += `
-    <div class="pendientes-alert">
-      <div class="pendientes-alert-header">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:20px;height:20px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        ${noEnviaron.length} asesores pendientes de enviar
-      </div>
-      <div class="pendientes-pill-list">
-        ${noEnviaron.map(usuarioId => {
-          const nombreAgente = mapaAgentes[usuarioId] || usuarioId;
-          return `<div class="pendiente-pill">${nombreAgente}</div>`;
-        }).join("")}
-      </div>
-    </div>`;
-  }
-
   enviaron.forEach(usuarioId => {
     const filas = porAsesor[usuarioId];
     const totalAsesor = filas.reduce((s, f) => s + (parseInt(f.densidad)||0), 0);
     const nombreAgente = mapaAgentes[usuarioId] || usuarioId; 
 
-    html += `
-    <div class="admin-proy-card">
-      <div class="admin-proy-card-header">
-        <div class="admin-proy-card-header-left">
-          <div class="proy-admin-avatar">${nombreAgente.charAt(0).toUpperCase()}</div>
-          <span class="proy-admin-nombre">${nombreAgente}</span>
-        </div>
-        <span class="proy-admin-badge enviado">✓ ${totalAsesor} unidad${totalAsesor!==1?"es":""}</span>
+    html += `<div class="proy-admin-asesor">
+      <div class="proy-admin-asesor-header">
+        <div class="proy-admin-avatar">${nombreAgente.charAt(0).toUpperCase()}</div>
+        <span class="proy-admin-nombre">${nombreAgente}</span>
+        <span class="proy-admin-badge enviado">✓ Enviado · ${totalAsesor} unidad${totalAsesor!==1?"es":""}</span>
       </div>
       <div style="overflow-x:auto">
       <table class="data-table">
@@ -2372,20 +2352,35 @@ function proy_renderAdmin(data, todosUsuarios = []) {
     </div>`;
   });
 
-  html += `</div>`;
+  if (noEnviaron.length > 0) {
+    html += `<div class="proy-pendientes-wrap">
+      <p class="proy-pendientes-title">⏳ Sin proyección hoy</p>
+      <div class="proy-pendientes-list">
+        ${noEnviaron.map(usuarioId => {
+          const nombreAgente = mapaAgentes[usuarioId] || usuarioId;
+          return `
+          <div class="proy-pendiente-item">
+            <div class="proy-admin-avatar" style="background:var(--slate-200);color:var(--slate-500)">${nombreAgente.charAt(0).toUpperCase()}</div>
+            <span class="proy-admin-nombre" style="color:var(--slate-500)">${nombreAgente}</span>
+            <span class="proy-admin-badge pendiente">Sin enviar</span>
+          </div>`
+        }).join("")}
+      </div>
+    </div>`;
+  }
   wrap.innerHTML = html;
 }
 
 function proy_estadoBadge(estado) {
-  const norm = (estado || "").toLowerCase().replace(/\s/g, "");
-  let c = "status-badge ";
-  if (norm === "generado") c += "status-generado";
-  else if (norm === "porvencer") c += "status-porvencer";
-  else if (norm === "pagado") c += "status-pagado";
-  else if (norm === "pendiente") c += "status-pendiente";
-  else return estado || "—";
-  
-  return `<span class="${c}">${estado}</span>`;
+  const cfg = {
+    "Generado":   { bg:"#dbeafe", color:"#1d4ed8" },
+    "Por Vencer": { bg:"#fef9c3", color:"#92400e" },
+    "Pagado":     { bg:"#dcfce7", color:"#166534" },
+    "Pendiente":  { bg:"#fee2e2", color:"#b91c1c" },
+  };
+  const c = cfg[estado];
+  if (!c) return estado || "—";
+  return `<span style="display:inline-block;padding:3px 10px;border-radius:100px;font-size:0.75rem;font-weight:700;background:${c.bg};color:${c.color}">${estado}</span>`;
 }
 
 async function proy_guardar() {
@@ -2458,48 +2453,36 @@ function proy_descargarExcel() {
     return;
   }
 
-  const btn = document.querySelector(".proy-download-btn");
-  const originalHtml = btn ? btn.innerHTML : "";
-  if (btn) {
-      btn.disabled = true;
-      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> Descargando...`;
-  }
+  const hoy = proy_fechaHoyLima();
+  const mapaAgentes = {};
+  _proy_usuariosAdmin.forEach(u => {
+    mapaAgentes[u.usuario] = u.agente || u.usuario;
+  });
 
-  setTimeout(() => {
-    const hoy = proy_fechaHoyLima();
-    const mapaAgentes = {};
-    _proy_usuariosAdmin.forEach(u => {
-      mapaAgentes[u.usuario] = u.agente || u.usuario;
+  try {
+    const filas = data.map(f => ({
+      "Asesor":   String(mapaAgentes[f.usuario] || f.usuario || ""),
+      "Usuario":  String(f.usuario || ""),
+      "Nombre":   String(f.nombre   || ""),
+      "Densidad": parseInt(f.densidad) || 0,
+      "Producto": String(f.producto || ""),
+      "Estado":   String(f.estado   || ""),
+      "Hora":     String(f.hora || ""),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(filas, {
+      header: ["Asesor","Usuario","Nombre","Densidad","Producto","Estado","Hora"]
     });
+    ws["!cols"] = [{ wch: 18 }, { wch: 14 }, { wch: 22 }, { wch: 10 }, { wch: 20 }, { wch: 14 }, { wch: 10 }];
 
-    try {
-      const filas = data.map(f => ({
-        "Asesor":   String(mapaAgentes[f.usuario] || f.usuario || ""),
-        "Usuario":  String(f.usuario || ""),
-        "Nombre":   String(f.nombre   || ""),
-        "Densidad": parseInt(f.densidad) || 0,
-        "Producto": String(f.producto || ""),
-        "Estado":   String(f.estado   || ""),
-        "Hora":     String(f.hora || ""),
-      }));
+    const wb = XLSX.utils.book_new();
+    const sheetName = `Proyeccion ${hoy}`.replace(/\//g,"-").slice(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    XLSX.writeFile(wb, `Proyeccion_${hoy.replace(/\//g,"-")}.xlsx`);
 
-      const ws = XLSX.utils.json_to_sheet(filas, {
-        header: ["Asesor","Usuario","Nombre","Densidad","Producto","Estado","Hora"]
-      });
-      ws["!cols"] = [{ wch: 18 }, { wch: 14 }, { wch: 22 }, { wch: 10 }, { wch: 20 }, { wch: 14 }, { wch: 10 }];
-
-      const wb = XLSX.utils.book_new();
-      const sheetName = `Proyeccion ${hoy}`.replace(/\//g,"-").slice(0, 31);
-      XLSX.utils.book_append_sheet(wb, ws, sheetName);
-      XLSX.writeFile(wb, `Proyeccion_${hoy.replace(/\//g,"-")}.xlsx`);
-
-    } catch (err) {
-      alert("Error al generar el archivo. Intenta de nuevo.");
-    } finally {
-      if(btn) {
-          btn.disabled = false;
-          btn.innerHTML = originalHtml;
-      }
-    }
-  }, 100);
+  } catch (err) {
+    alert("Error al generar el archivo. Intenta de nuevo.");
+  }
 }
+
+
