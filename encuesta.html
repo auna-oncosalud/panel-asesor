@@ -197,6 +197,9 @@
 
     .field-label svg { width: 15px; height: 15px; color: var(--blue-500); flex-shrink: 0; }
 
+    /* ASTERISCO ROJO */
+    .required-asterisk { color: var(--red-500); margin-left: 3px; font-weight: 700; }
+
     input[type="text"],
     input[type="tel"] {
       width: 100%;
@@ -494,7 +497,7 @@
       <div class="field-group">
         <label class="field-label" for="s-nombre">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          Nombre y Apellido
+          Nombre y Apellido <span class="required-asterisk">*</span>
         </label>
         <input type="text" id="s-nombre" placeholder="Ej: María García López" autocomplete="name">
         <span class="field-error" id="err-s-nombre"></span>
@@ -503,9 +506,9 @@
       <div class="field-group">
         <label class="field-label" for="s-telefono">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.62 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.18 6.18l1.07-1.07a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-          Número de Teléfono
+          Número de Teléfono <span class="required-asterisk">*</span>
         </label>
-        <input type="tel" id="s-telefono" placeholder="Ej: 987654321" maxlength="9" inputmode="numeric" autocomplete="tel">
+        <input type="tel" id="s-telefono" placeholder="Ej: 987 654 321" maxlength="11" inputmode="numeric" autocomplete="tel">
         <span class="field-hint">Ingresa tu número de 9 dígitos</span>
         <span class="field-error" id="err-s-telefono"></span>
       </div>
@@ -513,7 +516,7 @@
       <div class="field-group">
         <label class="field-label" for="s-edad">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          Edad
+          Edad <span class="required-asterisk">*</span>
         </label>
         <input type="tel" id="s-edad" placeholder="Ej: 35" maxlength="3" inputmode="numeric">
         <span class="field-error" id="err-s-edad"></span>
@@ -524,7 +527,7 @@
       <div class="field-group">
         <label class="field-label">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-          ¿Actualmente cuentas con algún plan de salud?
+          ¿Actualmente cuentas con algún plan de salud? <span class="required-asterisk">*</span>
         </label>
         <div class="options-grid" id="opts-plan">
           <button class="option-card" type="button" onclick="selectOpcion('plan', 'Sí', this)">
@@ -544,7 +547,7 @@
       <div class="field-group">
         <label class="field-label">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          ¿Actualmente cuentas con algún seguro oncológico?
+          ¿Actualmente cuentas con algún seguro oncológico? <span class="required-asterisk">*</span>
         </label>
         <div class="options-grid" id="opts-seguro">
           <button class="option-card" type="button" onclick="selectOpcion('seguro', 'Sí', this)">
@@ -599,7 +602,6 @@
   const SUPABASE_URL = 'https://xqjhywbhwrmffkmvkxki.supabase.co'; // REEMPLAZAR
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxamh5d2Jod3JtZmZrbXZreGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTQzNzgsImV4cCI6MjA5MjM3MDM3OH0.4RRSC4gOCnZTuRC0HI6JEhr301xFRiFmYhFpiKxHG2M'; // REEMPLAZAR
   
-  // SOLUCIÓN DE CONFLICTO: Cambiamos a supabaseClient
   const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   const USUARIO = decodeURIComponent(new URLSearchParams(window.location.search).get("u") || "encuesta");
@@ -607,19 +609,36 @@
   let planSeleccionado   = null;
   let seguroSeleccionado = null;
 
+  // Lógica para formatear el teléfono con espacios
+  const sTelefonoInput = document.getElementById("s-telefono");
+  if (sTelefonoInput) {
+    sTelefonoInput.addEventListener("input", function() {
+      let val = this.value.replace(/\D/g, "");
+      let formatted = "";
+      if (val.length > 0) formatted += val.substring(0, 3);
+      if (val.length > 3) formatted += " " + val.substring(3, 6);
+      if (val.length > 6) formatted += " " + val.substring(6, 9);
+      this.value = formatted;
+    });
+    sTelefonoInput.addEventListener("keydown", (e) => {
+      const allowed = ["Backspace","Delete","ArrowLeft","ArrowRight","Tab","Home","End"];
+      if (!allowed.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault();
+    });
+  }
+
   function soloDigitos(id, max) {
     const el = document.getElementById(id);
+    if (!el) return;
     el.addEventListener("input",   () => { el.value = el.value.replace(/\D/g, "").slice(0, max); });
     el.addEventListener("keydown", (e) => {
       if (!["Backspace","Delete","ArrowLeft","ArrowRight","Tab","Home","End"].includes(e.key) && !/^\d$/.test(e.key))
         e.preventDefault();
     });
   }
-  soloDigitos("s-telefono", 9);
   soloDigitos("s-edad", 3);
 
   ["s-nombre","s-telefono","s-edad"].forEach(id => {
-    document.getElementById(id).addEventListener("input", () => {
+    document.getElementById(id)?.addEventListener("input", () => {
       document.getElementById(id).classList.remove("invalid");
       document.getElementById("err-" + id).textContent = "";
     });
@@ -642,8 +661,8 @@
       document.getElementById("err-s-nombre").textContent = "Ingresa tu nombre completo";
       ok = false;
     }
-    const tel = document.getElementById("s-telefono").value;
-    if (!/^\d{9}$/.test(tel)) {
+    const tel = document.getElementById("s-telefono").value.replace(/\s/g, ""); // Strip spaces for length check
+    if (tel.length !== 9) {
       document.getElementById("s-telefono").classList.add("invalid");
       document.getElementById("err-s-telefono").textContent = "El teléfono debe tener exactamente 9 dígitos";
       ok = false;
@@ -659,7 +678,6 @@
     return ok;
   }
 
-  // Exactamente el mismo formato de fecha de "Nuevo Lead"
   function fechaLima() {
     const now = new Date();
     const parts = new Intl.DateTimeFormat("en-US", {
@@ -683,7 +701,7 @@
     btn.disabled = true;
     btn.innerHTML = `<span class="spinner"></span> Enviando...`;
 
-    // Usando String() explícito para asegurar perfecta inserción en la BD
+    // Limpiamos los espacios del teléfono al enviar
     const datos = {
       usuario:     String(USUARIO),
       fecha:       String(fechaLima()),
