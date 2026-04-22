@@ -1,17 +1,18 @@
 /* ══════════════════════════════════════════════
-   AUNA — PORTAL ASESORES | script.js (Supabase Pro Version)
+   AUNA — PORTAL ASESORES | script.js (Supabase Pro + Realtime)
    ══════════════════════════════════════════════ */
 
 // ─── CONFIGURACIÓN DE SUPABASE ───
-const SUPABASE_URL = 'https://xqjhywbhwrmffkmvkxki.supabase.co'; // REEMPLAZAR CON TU URL
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxamh5d2Jod3JtZmZrbXZreGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTQzNzgsImV4cCI6MjA5MjM3MDM3OH0.4RRSC4gOCnZTuRC0HI6JEhr301xFRiFmYhFpiKxHG2M'; // REEMPLAZAR CON TU ANON KEY
+const SUPABASE_URL = 'https://xqjhywbhwrmffkmvkxki.supabase.co'; // REEMPLAZAR
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxamh5d2Jod3JtZmZrbXZreGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTQzNzgsImV4cCI6MjA5MjM3MDM3OH0.4RRSC4gOCnZTuRC0HI6JEhr301xFRiFmYhFpiKxHG2M'; // REEMPLAZAR
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ─── Todos los leads (cache para búsqueda) ───
-let allLeads    = [];
-let currentPage = 1;
-const PAGE_SIZE = 20;
+// ─── Variables Globales ───
+let allLeads        = [];
+let currentPage     = 1;
+const PAGE_SIZE     = 20;
+let realtimeChannel = null; // Canal para WebSockets
 
 /* ══════════════════════════════════════════════
    SESIÓN — localStorage con expiración 15 min
@@ -20,12 +21,7 @@ const SESSION_KEY     = "auna_session";
 const SESSION_MINUTES = 15;
 
 function guardarSesion(usuario, rol, agente) {
-  const sesion = {
-    usuario,
-    rol,
-    agente,
-    expira: Date.now() + SESSION_MINUTES * 60 * 1000,
-  };
+  const sesion = { usuario, rol, agente, expira: Date.now() + SESSION_MINUTES * 60 * 1000 };
   localStorage.setItem(SESSION_KEY, JSON.stringify(sesion));
 }
 
@@ -49,6 +45,10 @@ function leerSesion() {
 
 function borrarSesion() {
   localStorage.removeItem(SESSION_KEY);
+  if (realtimeChannel) {
+    supabaseClient.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+  }
 }
 
 (function verificarSesionAlCargar() {
@@ -67,15 +67,103 @@ document.addEventListener("keydown",    () => leerSesion());
 document.addEventListener("touchstart", () => leerSesion());
 
 /* ══════════════════════════════════════════════
+   NOTIFICACIÓN SUTIL EN TIEMPO REAL (Inyección dinámica)
+══════════════════════════════════════════════ */
+const rtStyle = document.createElement('style');
+rtStyle.innerHTML = `
+  #rt-toast {
+    position: fixed; bottom: 5.5rem; right: 2rem;
+    background: var(--blue-700); color: white;
+    padding: 12px 20px; border-radius: var(--radius-md);
+    font-weight: 600; font-size: 0.9rem;
+    display: none; align-items: center; gap: 10px;
+    box-shadow: 0 8px 24px rgba(0,61,153,0.4);
+    z-index: 999; border: 1px solid var(--blue-600);
+  }
+`;
+document.head.appendChild(rtStyle);
+
+const rtToast = document.createElement('div');
+rtToast.id = 'rt-toast';
+document.body.appendChild(rtToast);
+
+function mostrarToastRealtime(mensaje) {
+  const toast = document.getElementById("rt-toast");
+  toast.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px;flex-shrink:0"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> ${mensaje}`;
+  toast.style.display = "flex";
+  toast.style.animation = "slideInRight 0.3s ease";
+  setTimeout(() => {
+    toast.style.animation = "none";
+    toast.style.display = "none";
+  }, 4500);
+}
+
+/* ══════════════════════════════════════════════
+   SISTEMA DE TIEMPO REAL (WEBSOCKETS)
+══════════════════════════════════════════════ */
+function iniciarSuscripcionTiempoReal() {
+  const miRol = leerSesion()?.rol;
+  const miUsuario = leerSesion()?.usuario;
+
+  // Cerramos cualquier conexión previa por seguridad
+  if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+
+  // Nos suscribimos SOLO a la tabla "proyeccion"
+  realtimeChannel = supabaseClient.channel('custom-proyeccion-channel')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'proyeccion' },
+      (payload) => {
+        const usuarioModificado = payload.new?.usuario || payload.old?.usuario;
+        
+        // Si el administrador está logueado y el cambio lo hizo otro usuario
+        if (miRol === "Administrador" && usuarioModificado && usuarioModificado !== miUsuario) {
+          // Buscamos el nombre bonito del asesor
+          const nombreAsesor = _proy_usuariosAdmin.find(u => u.usuario === usuarioModificado)?.agente || usuarioModificado;
+          mostrarToastRealtime(`<strong>${nombreAsesor}</strong> ha actualizado su proyección`);
+          proy_recargarSilencioso();
+        } 
+        // Si un asesor actualizó su propia data en otro dispositivo
+        else if (usuarioModificado === miUsuario && payload.new?.usuario) {
+          proy_recargarSilencioso();
+        }
+      }
+    )
+    .subscribe();
+}
+
+// Recarga silenciosa: trae los datos frescos y pinta la tabla sin loaders que interrumpan
+async function proy_recargarSilencioso() {
+  const hoy = proy_fechaHoyLima();
+  const rol = leerSesion()?.rol;
+  const miUsuario = leerSesion()?.usuario;
+
+  try {
+    const { data: proyecciones } = await supabaseClient.from('proyeccion').select('*').eq('dia', hoy);
+    
+    if (rol === "Administrador") {
+      // Repinta el panel del Admin
+      proy_renderAdmin(proyecciones || [], _proy_usuariosAdmin);
+    } else {
+      // Repinta la vista previa del asesor (solo si está en modo lectura, no interrumpimos si está editando)
+      const misFilas = (proyecciones || []).filter(f => (f.usuario||"").toLowerCase() === miUsuario.toLowerCase());
+      if (misFilas.length > 0 && document.getElementById("proy-preview-view").style.display === "block") {
+        proy_renderPreview(misFilas);
+      }
+    }
+  } catch (error) {
+    console.error("Error en recarga silenciosa:", error);
+  }
+}
+
+/* ══════════════════════════════════════════════
    SHOW / HIDE PASSWORD
 ══════════════════════════════════════════════ */
 function togglePass() {
   const input = document.getElementById("password");
   const icon  = document.getElementById("eye-icon");
   const isHidden = input.type === "password";
-
   input.type = isHidden ? "text" : "password";
-
   icon.innerHTML = isHidden
     ? `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>`
     : `<path d="M1 12S5 4 12 4s11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/>`;
@@ -146,28 +234,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.key === "Enter") document.getElementById("password").focus();
   });
 
-  ["telefono", "edit-telefono"].forEach((id) => {
+  ["telefono", "edit-telefono", "edad", "edit-edad"].forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
-    el.setAttribute("maxlength", "9");
+    const isTel = id.includes("telefono");
+    el.setAttribute("maxlength", isTel ? "9" : "3");
     el.setAttribute("inputmode", "numeric");
-    el.addEventListener("input", () => {
-      el.value = el.value.replace(/\D/g, "").slice(0, 9);
-    });
-    el.addEventListener("keydown", (e) => {
-      const allowed = ["Backspace","Delete","ArrowLeft","ArrowRight","Tab","Home","End"];
-      if (!allowed.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault();
-    });
-  });
-
-  ["edad", "edit-edad"].forEach((id) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.setAttribute("maxlength", "3");
-    el.setAttribute("inputmode", "numeric");
-    el.addEventListener("input", () => {
-      el.value = el.value.replace(/\D/g, "").slice(0, 3);
-    });
+    el.addEventListener("input", () => { el.value = el.value.replace(/\D/g, "").slice(0, isTel ? 9 : 3); });
     el.addEventListener("keydown", (e) => {
       const allowed = ["Backspace","Delete","ArrowLeft","ArrowRight","Tab","Home","End"];
       if (!allowed.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault();
@@ -183,11 +256,13 @@ function mostrarPantallaFormulario(user) {
   document.getElementById("form-section").style.display  = "block";
 
   const nombre = user.agente || user.usuario;
-
   document.getElementById("topbar-title").textContent    = `Formulario Barrido`;
   document.getElementById("user-name-chip").textContent  = nombre;
   document.getElementById("user-avatar").textContent     = nombre.charAt(0).toUpperCase();
   document.getElementById("form-title").textContent = `Formulario Barrido — ${nombre}`;
+
+  // Al iniciar sesión correctamente, nos suscribimos al tiempo real de proyecciones
+  iniciarSuscripcionTiempoReal();
 }
 
 /* ══════════════════════════════════════════════
@@ -337,7 +412,6 @@ document.getElementById("barrido-form").addEventListener("submit", async functio
 
   setSubmitLoading(true);
 
-  // OPTIMIZACIÓN: Casteo forzoso a String para coincidir con la BD
   const datos = {
     usuario:     String(leerSesion()?.usuario),
     fecha:       (() => {
@@ -424,7 +498,6 @@ async function verRegistros() {
   const miUser = leerSesion()?.usuario;
 
   try {
-    // OPTIMIZACIÓN: Agregamos limit(10000) para prevenir el truncamiento silencioso de PostgREST
     let query = supabaseClient.from('leads').select('*').limit(10000);
     
     if (rol !== "Administrador") {
@@ -2255,7 +2328,7 @@ function proy_estadoBadge(estado) {
 async function proy_guardar() {
   const btn    = document.getElementById("proy-btn-save");
   const text   = btn.querySelector(".btn-text");
-  const loader = btn.querySelector(".btn-loader");
+  const loader = document.querySelector(".btn-loader");
   
   const filas = proy_leerFilas();
   
