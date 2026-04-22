@@ -3,8 +3,8 @@
    ══════════════════════════════════════════════ */
 
 // ─── CONFIGURACIÓN DE SUPABASE ───
-const SUPABASE_URL = 'https://xqjhywbhwrmffkmvkxki.supabase.co'; // REEMPLAZAR CON TU URL
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxamh5d2Jod3JtZmZrbXZreGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTQzNzgsImV4cCI6MjA5MjM3MDM3OH0.4RRSC4gOCnZTuRC0HI6JEhr301xFRiFmYhFpiKxHG2M'; // REEMPLAZAR CON TU ANON KEY
+const SUPABASE_URL = 'https://TU_PROYECTO.supabase.co'; // REEMPLAZAR CON TU URL
+const SUPABASE_KEY = 'TU_ANON_KEY'; // REEMPLAZAR CON TU ANON KEY
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -105,49 +105,41 @@ function iniciarSuscripcionTiempoReal() {
   const miRol = leerSesion()?.rol;
   const miUsuario = leerSesion()?.usuario;
 
-  // Cerramos conexión previa por seguridad
   if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
 
-  // Nos suscribimos a un solo canal global para optimizar conexiones
   realtimeChannel = supabaseClient.channel('auna-db-changes')
-    // 1. Escuchar la tabla PROYECCIÓN
+    // Escuchar la tabla PROYECCIÓN
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'proyeccion' },
       (payload) => {
         const usuarioModificado = payload.new?.usuario || payload.old?.usuario;
-        
-        // Si es Admin y el cambio es de un Asesor, notificamos y recargamos
         if (miRol === "Administrador" && usuarioModificado && usuarioModificado !== miUsuario) {
           const nombreAsesor = _proy_usuariosAdmin.find(u => u.usuario === usuarioModificado)?.agente || usuarioModificado;
           mostrarToastRealtime(`<strong>${nombreAsesor}</strong> ha actualizado su proyección`);
           proy_recargarSilencioso();
         } 
-        // Si el asesor cambió su propia data (sincronización multi-dispositivo)
         else if (usuarioModificado === miUsuario && payload.new?.usuario) {
           proy_recargarSilencioso();
         }
       }
     )
-    // 2. Escuchar la tabla LEADS
+    // Escuchar la tabla LEADS
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'leads' },
       (payload) => {
         const usuarioModificado = payload.new?.usuario || payload.old?.usuario;
-        
-        // SIN notificaciones. Recarga silenciosa de tablas y gráficas
         if (miRol === "Administrador") {
-          leads_recargarSilencioso(); // El Admin actualiza todo siempre
+          leads_recargarSilencioso(); 
         } else if (usuarioModificado === miUsuario) {
-          leads_recargarSilencioso(); // El Asesor solo actualiza si es su propio lead
+          leads_recargarSilencioso(); 
         }
       }
     )
     .subscribe();
 }
 
-// ── Recarga Silenciosa de LEADS (Registros y Estadísticas) ──
 async function leads_recargarSilencioso() {
   const rol    = leerSesion()?.rol;
   const miUser = leerSesion()?.usuario;
@@ -162,8 +154,6 @@ async function leads_recargarSilencioso() {
     if (error) throw error;
 
     allLeads = leadsData || [];
-
-    // Re-ordenamos por fecha más reciente
     allLeads.sort((a, b) => {
       const da = parseFechaParaFiltro(a.fecha);
       const db = parseFechaParaFiltro(b.fecha);
@@ -173,26 +163,23 @@ async function leads_recargarSilencioso() {
       return 0;
     });
 
-    // Actualizamos UI solo si la vista correspondiente está activa
     const vistaLista = document.getElementById("vista-lista");
     const vistaStats = document.getElementById("vista-stats");
 
     if (vistaLista && vistaLista.style.display !== "none") {
-      document.getElementById("records-sub").textContent =
-        `${allLeads.length} lead${allLeads.length !== 1 ? "s" : ""} encontrado${allLeads.length !== 1 ? "s" : ""}`;
-      aplicarFiltros(); // Aplica filtros vigentes y re-dibuja la tabla
+      const elSub = document.getElementById("records-sub");
+      if (elSub) elSub.textContent = `${allLeads.length} lead${allLeads.length !== 1 ? "s" : ""} encontrado${allLeads.length !== 1 ? "s" : ""}`;
+      aplicarFiltros(true); 
     }
 
     if (vistaStats && vistaStats.style.display === "block") {
-      renderStats(); // Re-dibuja las gráficas y KPIs
+      renderStats(); 
     }
-
   } catch (error) {
     console.error("Error en recarga silenciosa de leads:", error);
   }
 }
 
-// ── Recarga Silenciosa de PROYECCIONES ──
 async function proy_recargarSilencioso() {
   const hoy = proy_fechaHoyLima();
   const rol = leerSesion()?.rol;
@@ -284,6 +271,16 @@ function showLoginError(msg) {
   el.style.animation = "fadeUp 0.3s ease";
 }
 
+// FORMATO DE TELÉFONO VISUAL CON ESPACIOS
+function formatPhone(inputElement) {
+  let val = inputElement.value.replace(/\D/g, ""); // strip no digitos
+  let formatted = "";
+  if (val.length > 0) formatted += val.substring(0, 3);
+  if (val.length > 3) formatted += " " + val.substring(3, 6);
+  if (val.length > 6) formatted += " " + val.substring(6, 9);
+  inputElement.value = formatted;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("password").addEventListener("keydown", (e) => {
     if (e.key === "Enter") login();
@@ -292,16 +289,20 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.key === "Enter") document.getElementById("password").focus();
   });
 
-  ["telefono", "edit-telefono", "edad", "edit-edad"].forEach((id) => {
+  ["telefono", "edit-telefono"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener("input", function() { formatPhone(this); });
+    }
+  });
+
+  ["edad", "edit-edad"].forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
-    const isTel = id.includes("telefono");
-    el.setAttribute("maxlength", isTel ? "9" : "3");
+    el.setAttribute("maxlength", "3");
     el.setAttribute("inputmode", "numeric");
-    el.addEventListener("input", () => { el.value = el.value.replace(/\D/g, "").slice(0, isTel ? 9 : 3); });
-    el.addEventListener("keydown", (e) => {
-      const allowed = ["Backspace","Delete","ArrowLeft","ArrowRight","Tab","Home","End"];
-      if (!allowed.includes(e.key) && !/^\d$/.test(e.key)) e.preventDefault();
+    el.addEventListener("input", () => {
+      el.value = el.value.replace(/\D/g, "").slice(0, 3);
     });
   });
 });
@@ -317,9 +318,9 @@ function mostrarPantallaFormulario(user) {
   document.getElementById("topbar-title").textContent    = `Formulario Barrido`;
   document.getElementById("user-name-chip").textContent  = nombre;
   document.getElementById("user-avatar").textContent     = nombre.charAt(0).toUpperCase();
-  document.getElementById("form-title").textContent = `Formulario Barrido — ${nombre}`;
+  document.getElementById("form-title").textContent      = `Formulario Barrido — ${nombre}`;
 
-  // Activar tiempo real
+  // Iniciar WebSockets al entrar
   iniciarSuscripcionTiempoReal();
 }
 
@@ -484,7 +485,7 @@ document.getElementById("barrido-form").addEventListener("submit", async functio
                    return `${get("day")}/${get("month")}/${get("year")} ${get("hour")}:${get("minute")} ${ampm}`;
                  })(),
     nombre:      String(document.getElementById("nombre").value.trim()),
-    telefono:    String(document.getElementById("telefono").value.replace(/\s/g, "")),
+    telefono:    String(document.getElementById("telefono").value.replace(/\s/g, "")), // Limpiar espacios
     edad:        String(document.getElementById("edad").value),
     producto:    String(document.getElementById("producto").value),
     temperatura: String(document.getElementById("temperatura").value),
@@ -557,7 +558,6 @@ async function verRegistros() {
 
   try {
     let query = supabaseClient.from('leads').select('*').limit(10000);
-    
     if (rol !== "Administrador") {
       query = query.eq('usuario', miUser);
     }
@@ -566,7 +566,6 @@ async function verRegistros() {
     if (error) throw error;
 
     allLeads = leadsData || [];
-
     allLeads.sort((a, b) => {
       const da = parseFechaParaFiltro(a.fecha);
       const db = parseFechaParaFiltro(b.fecha);
@@ -1014,7 +1013,7 @@ function paginationRange(current, total) {
 
 function cambiarPagina(page) {
   currentPage = page;
-  aplicarFiltros(true); // El true asegura que se respete la página actual al filtrar visualmente
+  aplicarFiltros(true); 
   document.getElementById("tabla-registros").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -1025,7 +1024,12 @@ function abrirEditModal(idx) {
 
   document.getElementById("edit-row-index").value   = lead.id; 
   document.getElementById("edit-nombre").value      = String(lead.nombre || "");
-  document.getElementById("edit-telefono").value    = String(lead.telefono || "");
+  
+  // Mostrar teléfono con formato en el modal
+  const editTelInput = document.getElementById("edit-telefono");
+  editTelInput.value = String(lead.telefono || "");
+  formatPhone(editTelInput);
+
   document.getElementById("edit-edad").value        = String(lead.edad || "");
   document.getElementById("edit-producto").value    = String(lead.producto || "");
   document.getElementById("edit-temperatura").value = String(lead.temperatura || "");
@@ -2315,7 +2319,7 @@ function proy_renderAdmin(data, todosUsuarios = []) {
 
   const todosAsesores = [...new Set([ ...Object.keys(porAsesor), ...asesoresRegistrados ])];
 
-  let html = "";
+  let html = `<div class="admin-cards-grid">`;
   const enviaron    = todosAsesores.filter(a => porAsesor[a]);
   const noEnviaron  = todosAsesores.filter(a => !porAsesor[a] && a !== "—");
 
@@ -2324,16 +2328,35 @@ function proy_renderAdmin(data, todosUsuarios = []) {
     return;
   }
 
+  if (noEnviaron.length > 0) {
+    html += `
+    <div class="pendientes-alert">
+      <div class="pendientes-alert-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:20px;height:20px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        ${noEnviaron.length} asesores pendientes de enviar
+      </div>
+      <div class="pendientes-pill-list">
+        ${noEnviaron.map(usuarioId => {
+          const nombreAgente = mapaAgentes[usuarioId] || usuarioId;
+          return `<div class="pendiente-pill">${nombreAgente}</div>`;
+        }).join("")}
+      </div>
+    </div>`;
+  }
+
   enviaron.forEach(usuarioId => {
     const filas = porAsesor[usuarioId];
     const totalAsesor = filas.reduce((s, f) => s + (parseInt(f.densidad)||0), 0);
     const nombreAgente = mapaAgentes[usuarioId] || usuarioId; 
 
-    html += `<div class="proy-admin-asesor">
-      <div class="proy-admin-asesor-header">
-        <div class="proy-admin-avatar">${nombreAgente.charAt(0).toUpperCase()}</div>
-        <span class="proy-admin-nombre">${nombreAgente}</span>
-        <span class="proy-admin-badge enviado">✓ Enviado · ${totalAsesor} unidad${totalAsesor!==1?"es":""}</span>
+    html += `
+    <div class="admin-proy-card">
+      <div class="admin-proy-card-header">
+        <div class="admin-proy-card-header-left">
+          <div class="proy-admin-avatar">${nombreAgente.charAt(0).toUpperCase()}</div>
+          <span class="proy-admin-nombre">${nombreAgente}</span>
+        </div>
+        <span class="proy-admin-badge enviado">✓ ${totalAsesor} unidad${totalAsesor!==1?"es":""}</span>
       </div>
       <div style="overflow-x:auto">
       <table class="data-table">
@@ -2352,35 +2375,20 @@ function proy_renderAdmin(data, todosUsuarios = []) {
     </div>`;
   });
 
-  if (noEnviaron.length > 0) {
-    html += `<div class="proy-pendientes-wrap">
-      <p class="proy-pendientes-title">⏳ Sin proyección hoy</p>
-      <div class="proy-pendientes-list">
-        ${noEnviaron.map(usuarioId => {
-          const nombreAgente = mapaAgentes[usuarioId] || usuarioId;
-          return `
-          <div class="proy-pendiente-item">
-            <div class="proy-admin-avatar" style="background:var(--slate-200);color:var(--slate-500)">${nombreAgente.charAt(0).toUpperCase()}</div>
-            <span class="proy-admin-nombre" style="color:var(--slate-500)">${nombreAgente}</span>
-            <span class="proy-admin-badge pendiente">Sin enviar</span>
-          </div>`
-        }).join("")}
-      </div>
-    </div>`;
-  }
+  html += `</div>`;
   wrap.innerHTML = html;
 }
 
 function proy_estadoBadge(estado) {
-  const cfg = {
-    "Generado":   { bg:"#dbeafe", color:"#1d4ed8" },
-    "Por Vencer": { bg:"#fef9c3", color:"#92400e" },
-    "Pagado":     { bg:"#dcfce7", color:"#166534" },
-    "Pendiente":  { bg:"#fee2e2", color:"#b91c1c" },
-  };
-  const c = cfg[estado];
-  if (!c) return estado || "—";
-  return `<span style="display:inline-block;padding:3px 10px;border-radius:100px;font-size:0.75rem;font-weight:700;background:${c.bg};color:${c.color}">${estado}</span>`;
+  const norm = (estado || "").toLowerCase().replace(/\s/g, "");
+  let c = "status-badge ";
+  if (norm === "generado") c += "status-generado";
+  else if (norm === "porvencer") c += "status-porvencer";
+  else if (norm === "pagado") c += "status-pagado";
+  else if (norm === "pendiente") c += "status-pendiente";
+  else return estado || "—";
+  
+  return `<span class="${c}">${estado}</span>`;
 }
 
 async function proy_guardar() {
