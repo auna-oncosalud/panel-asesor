@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -198,7 +199,7 @@
                 <div class="field-group full-width">
                   <label for="nombre">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                    Nombre y Apellido
+                    Nombre y Apellido <span class="required-asterisk">*</span>
                   </label>
                   <input type="text" id="nombre" placeholder="Nombre completo del cliente" required>
                   <span class="field-error" id="err-nombre"></span>
@@ -207,16 +208,16 @@
                 <div class="field-group">
                   <label for="telefono">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.62 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.18 6.18l1.07-1.07a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                    Número de Teléfono
+                    Número de Teléfono <span class="required-asterisk">*</span>
                   </label>
-                  <input type="tel" id="telefono" placeholder="9 dígitos" maxlength="9" inputmode="numeric" required>
+                  <input type="tel" id="telefono" placeholder="987 654 321" maxlength="11" inputmode="numeric" required>
                   <span class="field-error" id="err-telefono"></span>
                 </div>
 
                 <div class="field-group">
                   <label for="edad">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                    Edad
+                    Edad <span class="required-asterisk">*</span>
                   </label>
                   <input type="tel" id="edad" placeholder="Años" maxlength="3" inputmode="numeric" required>
                   <span class="field-error" id="err-edad"></span>
@@ -225,7 +226,7 @@
                 <div class="field-group full-width">
                   <label for="producto">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-                    Producto de Interés
+                    Producto de Interés <span class="required-asterisk">*</span>
                   </label>
                   <div class="select-wrap">
                     <select id="producto" required>
@@ -244,7 +245,7 @@
                 <div class="field-group full-width">
                   <label for="temperatura">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
-                    Temperatura del Lead
+                    Temperatura del Lead <span class="required-asterisk">*</span>
                   </label>
                   <div class="select-wrap">
                     <select id="temperatura" required>
@@ -408,7 +409,6 @@
             </div>
 
             <div class="encuesta-body">
-
               <div class="link-section">
                 <label class="link-label">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
@@ -421,7 +421,6 @@
                   </button>
                 </div>
               </div>
-
               <div class="qr-section">
                 <label class="link-label">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9V5a2 2 0 0 1 2-2h4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M21 15v4a2 2 0 0 1-2 2h-4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/></svg>
@@ -619,7 +618,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
               </div>
               <div style="flex:1">
-                <h2 class="proy-title">Proyecciones del Día — Todos los Asesores</h2>
+                <h2 class="proy-title">Proyecciones del Día</h2>
                 <p class="proy-sub" id="proy-admin-fecha">Hoy</p>
               </div>
               <div class="proy-kpi-total">
@@ -667,7 +666,7 @@
                   Descargar Excel
                 </button>
               </div>
-              <div id="proy-admin-tabla"></div>
+              <div id="proy-admin-tabla" style="padding: 1.5rem; background: var(--slate-100);"></div>
             </div>
 
           </div>
@@ -860,7 +859,7 @@
           <div class="field-group full-width">
             <label for="edit-nombre">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              Nombre y Apellido
+              Nombre y Apellido <span class="required-asterisk">*</span>
             </label>
             <input type="text" id="edit-nombre" placeholder="Nombre completo del cliente">
             <span class="field-error" id="edit-err-nombre"></span>
@@ -869,16 +868,16 @@
           <div class="field-group">
             <label for="edit-telefono">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.62 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.18 6.18l1.07-1.07a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-              Número de Teléfono
+              Número de Teléfono <span class="required-asterisk">*</span>
             </label>
-            <input type="tel" id="edit-telefono" placeholder="Ej: 987654321" maxlength="9" inputmode="numeric">
+            <input type="tel" id="edit-telefono" placeholder="987 654 321" maxlength="11" inputmode="numeric">
             <span class="field-error" id="edit-err-telefono"></span>
           </div>
 
           <div class="field-group">
             <label for="edit-edad">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              Edad
+              Edad <span class="required-asterisk">*</span>
             </label>
             <input type="tel" id="edit-edad" placeholder="Ej: 45" maxlength="3" inputmode="numeric">
             <span class="field-error" id="edit-err-edad"></span>
@@ -887,7 +886,7 @@
           <div class="field-group full-width">
             <label for="edit-producto">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-              Producto de Interés
+              Producto de Interés <span class="required-asterisk">*</span>
             </label>
             <div class="select-wrap">
               <select id="edit-producto">
@@ -906,7 +905,7 @@
           <div class="field-group full-width">
             <label for="edit-temperatura">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
-              Temperatura del Lead
+              Temperatura del Lead <span class="required-asterisk">*</span>
             </label>
             <div class="select-wrap">
               <select id="edit-temperatura">
