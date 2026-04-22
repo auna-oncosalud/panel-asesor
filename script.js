@@ -1,10 +1,10 @@
 /* ══════════════════════════════════════════════
-   AUNA — PORTAL ASESORES | script.js (Supabase Pro + Realtime)
+   AUNA — PORTAL ASESORES | script.js (Supabase Pro + Realtime Full)
    ══════════════════════════════════════════════ */
 
 // ─── CONFIGURACIÓN DE SUPABASE ───
-const SUPABASE_URL = 'https://xqjhywbhwrmffkmvkxki.supabase.co'; // REEMPLAZAR
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxamh5d2Jod3JtZmZrbXZreGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTQzNzgsImV4cCI6MjA5MjM3MDM3OH0.4RRSC4gOCnZTuRC0HI6JEhr301xFRiFmYhFpiKxHG2M'; // REEMPLAZAR
+const SUPABASE_URL = 'https://xqjhywbhwrmffkmvkxki.supabase.co'; // REEMPLAZAR CON TU URL
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxamh5d2Jod3JtZmZrbXZreGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTQzNzgsImV4cCI6MjA5MjM3MDM3OH0.4RRSC4gOCnZTuRC0HI6JEhr301xFRiFmYhFpiKxHG2M'; // REEMPLAZAR CON TU ANON KEY
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -67,7 +67,7 @@ document.addEventListener("keydown",    () => leerSesion());
 document.addEventListener("touchstart", () => leerSesion());
 
 /* ══════════════════════════════════════════════
-   NOTIFICACIÓN SUTIL EN TIEMPO REAL (Inyección dinámica)
+   NOTIFICACIÓN SUTIL EN TIEMPO REAL (Proyecciones)
 ══════════════════════════════════════════════ */
 const rtStyle = document.createElement('style');
 rtStyle.innerHTML = `
@@ -99,40 +99,100 @@ function mostrarToastRealtime(mensaje) {
 }
 
 /* ══════════════════════════════════════════════
-   SISTEMA DE TIEMPO REAL (WEBSOCKETS)
+   SISTEMA DE TIEMPO REAL (WEBSOCKETS FULL)
 ══════════════════════════════════════════════ */
 function iniciarSuscripcionTiempoReal() {
   const miRol = leerSesion()?.rol;
   const miUsuario = leerSesion()?.usuario;
 
-  // Cerramos cualquier conexión previa por seguridad
+  // Cerramos conexión previa por seguridad
   if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
 
-  // Nos suscribimos SOLO a la tabla "proyeccion"
-  realtimeChannel = supabaseClient.channel('custom-proyeccion-channel')
+  // Nos suscribimos a un solo canal global para optimizar conexiones
+  realtimeChannel = supabaseClient.channel('auna-db-changes')
+    // 1. Escuchar la tabla PROYECCIÓN
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'proyeccion' },
       (payload) => {
         const usuarioModificado = payload.new?.usuario || payload.old?.usuario;
         
-        // Si el administrador está logueado y el cambio lo hizo otro usuario
+        // Si es Admin y el cambio es de un Asesor, notificamos y recargamos
         if (miRol === "Administrador" && usuarioModificado && usuarioModificado !== miUsuario) {
-          // Buscamos el nombre bonito del asesor
           const nombreAsesor = _proy_usuariosAdmin.find(u => u.usuario === usuarioModificado)?.agente || usuarioModificado;
           mostrarToastRealtime(`<strong>${nombreAsesor}</strong> ha actualizado su proyección`);
           proy_recargarSilencioso();
         } 
-        // Si un asesor actualizó su propia data en otro dispositivo
+        // Si el asesor cambió su propia data (sincronización multi-dispositivo)
         else if (usuarioModificado === miUsuario && payload.new?.usuario) {
           proy_recargarSilencioso();
+        }
+      }
+    )
+    // 2. Escuchar la tabla LEADS
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'leads' },
+      (payload) => {
+        const usuarioModificado = payload.new?.usuario || payload.old?.usuario;
+        
+        // SIN notificaciones. Recarga silenciosa de tablas y gráficas
+        if (miRol === "Administrador") {
+          leads_recargarSilencioso(); // El Admin actualiza todo siempre
+        } else if (usuarioModificado === miUsuario) {
+          leads_recargarSilencioso(); // El Asesor solo actualiza si es su propio lead
         }
       }
     )
     .subscribe();
 }
 
-// Recarga silenciosa: trae los datos frescos y pinta la tabla sin loaders que interrumpan
+// ── Recarga Silenciosa de LEADS (Registros y Estadísticas) ──
+async function leads_recargarSilencioso() {
+  const rol    = leerSesion()?.rol;
+  const miUser = leerSesion()?.usuario;
+
+  try {
+    let query = supabaseClient.from('leads').select('*').limit(10000);
+    if (rol !== "Administrador") {
+      query = query.eq('usuario', miUser);
+    }
+    
+    const { data: leadsData, error } = await query;
+    if (error) throw error;
+
+    allLeads = leadsData || [];
+
+    // Re-ordenamos por fecha más reciente
+    allLeads.sort((a, b) => {
+      const da = parseFechaParaFiltro(a.fecha);
+      const db = parseFechaParaFiltro(b.fecha);
+      if (da && db) return db - da;
+      if (!da) return 1;
+      if (!db) return -1;
+      return 0;
+    });
+
+    // Actualizamos UI solo si la vista correspondiente está activa
+    const vistaLista = document.getElementById("vista-lista");
+    const vistaStats = document.getElementById("vista-stats");
+
+    if (vistaLista && vistaLista.style.display !== "none") {
+      document.getElementById("records-sub").textContent =
+        `${allLeads.length} lead${allLeads.length !== 1 ? "s" : ""} encontrado${allLeads.length !== 1 ? "s" : ""}`;
+      aplicarFiltros(); // Aplica filtros vigentes y re-dibuja la tabla
+    }
+
+    if (vistaStats && vistaStats.style.display === "block") {
+      renderStats(); // Re-dibuja las gráficas y KPIs
+    }
+
+  } catch (error) {
+    console.error("Error en recarga silenciosa de leads:", error);
+  }
+}
+
+// ── Recarga Silenciosa de PROYECCIONES ──
 async function proy_recargarSilencioso() {
   const hoy = proy_fechaHoyLima();
   const rol = leerSesion()?.rol;
@@ -142,17 +202,15 @@ async function proy_recargarSilencioso() {
     const { data: proyecciones } = await supabaseClient.from('proyeccion').select('*').eq('dia', hoy);
     
     if (rol === "Administrador") {
-      // Repinta el panel del Admin
       proy_renderAdmin(proyecciones || [], _proy_usuariosAdmin);
     } else {
-      // Repinta la vista previa del asesor (solo si está en modo lectura, no interrumpimos si está editando)
       const misFilas = (proyecciones || []).filter(f => (f.usuario||"").toLowerCase() === miUsuario.toLowerCase());
       if (misFilas.length > 0 && document.getElementById("proy-preview-view").style.display === "block") {
         proy_renderPreview(misFilas);
       }
     }
   } catch (error) {
-    console.error("Error en recarga silenciosa:", error);
+    console.error("Error en recarga silenciosa de proyección:", error);
   }
 }
 
@@ -261,7 +319,7 @@ function mostrarPantallaFormulario(user) {
   document.getElementById("user-avatar").textContent     = nombre.charAt(0).toUpperCase();
   document.getElementById("form-title").textContent = `Formulario Barrido — ${nombre}`;
 
-  // Al iniciar sesión correctamente, nos suscribimos al tiempo real de proyecciones
+  // Activar tiempo real
   iniciarSuscripcionTiempoReal();
 }
 
@@ -571,7 +629,7 @@ function toggleRangoPersonalizado() {
   setQuickFilter(esRango ? "todos" : "rango");
 }
 
-function aplicarFiltros() {
+function aplicarFiltros(preservePage = false) {
   const q          = document.getElementById("search-input")?.value.toLowerCase() || "";
   const desde      = document.getElementById("fecha-desde")?.value || "";
   const hasta      = document.getElementById("fecha-hasta")?.value || "";
@@ -613,7 +671,7 @@ function aplicarFiltros() {
     return asesorOk && textoOk && fechaOk;
   });
 
-  currentPage = 1;
+  if (!preservePage) currentPage = 1;
   renderTable(filtrados, document.getElementById("tabla-registros"));
 }
 
@@ -956,7 +1014,7 @@ function paginationRange(current, total) {
 
 function cambiarPagina(page) {
   currentPage = page;
-  aplicarFiltros(); 
+  aplicarFiltros(true); // El true asegura que se respete la página actual al filtrar visualmente
   document.getElementById("tabla-registros").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -1046,7 +1104,7 @@ async function guardarEdicion() {
 
     allLeads[leadIdx] = { ...allLeads[leadIdx], ...datosEditados };
     closeEditModal();
-    aplicarFiltros();
+    aplicarFiltros(true);
     showToastEdit();
 
   } catch (error) {
