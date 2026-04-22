@@ -1,10 +1,10 @@
 /* ══════════════════════════════════════════════
-   AUNA — PORTAL ASESORES | script.js (Supabase Version)
+   AUNA — PORTAL ASESORES | script.js (Supabase Pro Version)
    ══════════════════════════════════════════════ */
 
 // ─── CONFIGURACIÓN DE SUPABASE ───
-const SUPABASE_URL = 'https://xqjhywbhwrmffkmvkxki.supabase.co'; // REEMPLAZAR CON TU URL
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxamh5d2Jod3JtZmZrbXZreGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTQzNzgsImV4cCI6MjA5MjM3MDM3OH0.4RRSC4gOCnZTuRC0HI6JEhr301xFRiFmYhFpiKxHG2M'; // REEMPLAZAR CON TU ANON KEY
+const SUPABASE_URL = 'https://xqjhywbhwrmffkmvkxki.supabase.co'; // REEMPLAZAR
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxamh5d2Jod3JtZmZrbXZreGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTQzNzgsImV4cCI6MjA5MjM3MDM3OH0.4RRSC4gOCnZTuRC0HI6JEhr301xFRiFmYhFpiKxHG2M'; // REEMPLAZAR
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -106,12 +106,14 @@ async function login() {
       .single();
 
     if (error || !usuario) {
+      console.error("Detalle DB (Login):", error?.message);
       showLoginError();
     } else {
       guardarSesion(usuario.usuario, usuario.rol, usuario.agente);
       mostrarPantallaFormulario(usuario);
     }
   } catch (error) {
+    console.error("Detalle DB (Login Catch):", error);
     showLoginError("Error al conectar. Verifica tu conexión.");
   } finally {
     setLoginLoading(false);
@@ -335,8 +337,9 @@ document.getElementById("barrido-form").addEventListener("submit", async functio
 
   setSubmitLoading(true);
 
+  // OPTIMIZACIÓN: Casteo forzoso a String para coincidir con la BD
   const datos = {
-    usuario:     leerSesion()?.usuario,
+    usuario:     String(leerSesion()?.usuario),
     fecha:       (() => {
                    const now = new Date();
                    const parts = new Intl.DateTimeFormat("en-US", {
@@ -348,13 +351,13 @@ document.getElementById("barrido-form").addEventListener("submit", async functio
                    const ampm = get("dayPeriod").toLowerCase();
                    return `${get("day")}/${get("month")}/${get("year")} ${get("hour")}:${get("minute")} ${ampm}`;
                  })(),
-    nombre:      document.getElementById("nombre").value.trim(),
-    telefono:    document.getElementById("telefono").value.replace(/\s/g, ""),
-    edad:        document.getElementById("edad").value,
-    producto:    document.getElementById("producto").value,
-    temperatura: document.getElementById("temperatura").value,
-    referencia:  document.getElementById("referencia").value.trim(),
-    comentarios: document.getElementById("comentarios").value.trim(),
+    nombre:      String(document.getElementById("nombre").value.trim()),
+    telefono:    String(document.getElementById("telefono").value.replace(/\s/g, "")),
+    edad:        String(document.getElementById("edad").value),
+    producto:    String(document.getElementById("producto").value),
+    temperatura: String(document.getElementById("temperatura").value),
+    referencia:  String(document.getElementById("referencia").value.trim()),
+    comentarios: String(document.getElementById("comentarios").value.trim()),
   };
 
   try {
@@ -363,7 +366,7 @@ document.getElementById("barrido-form").addEventListener("submit", async functio
 
     window._ultimoLead = {
       nombre:   datos.nombre,
-      telefono: String(datos.telefono),
+      telefono: datos.telefono,
       producto: datos.producto,
     };
 
@@ -377,7 +380,8 @@ document.getElementById("barrido-form").addEventListener("submit", async functio
     abrirWaModal(window._ultimoLead);
 
   } catch (error) {
-    alert("Error al guardar. Verifica tu conexión e intenta de nuevo.");
+    console.error("Detalle DB (Insertar Lead):", error);
+    alert("Error al guardar el registro. Verifica tu conexión e intenta de nuevo.");
   } finally {
     setSubmitLoading(false);
   }
@@ -420,7 +424,9 @@ async function verRegistros() {
   const miUser = leerSesion()?.usuario;
 
   try {
-    let query = supabaseClient.from('leads').select('*');
+    // OPTIMIZACIÓN: Agregamos limit(10000) para prevenir el truncamiento silencioso de PostgREST
+    let query = supabaseClient.from('leads').select('*').limit(10000);
+    
     if (rol !== "Administrador") {
       query = query.eq('usuario', miUser);
     }
@@ -454,6 +460,7 @@ async function verRegistros() {
     renderTable(allLeads, contenedor);
 
   } catch (e) {
+    console.error("Detalle DB (Leer Leads):", e);
     contenedor.innerHTML = `
       <div class="empty-state">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -874,13 +881,13 @@ function abrirEditModal(idx) {
   if (!lead) return;
 
   document.getElementById("edit-row-index").value   = lead.id; 
-  document.getElementById("edit-nombre").value      = lead.nombre      || "";
+  document.getElementById("edit-nombre").value      = String(lead.nombre || "");
   document.getElementById("edit-telefono").value    = String(lead.telefono || "");
-  document.getElementById("edit-edad").value        = lead.edad        || "";
-  document.getElementById("edit-producto").value    = lead.producto    || "";
-  document.getElementById("edit-temperatura").value = lead.temperatura || "";
-  document.getElementById("edit-referencia").value  = lead.referencia  || "";
-  document.getElementById("edit-comentarios").value = lead.comentarios || "";
+  document.getElementById("edit-edad").value        = String(lead.edad || "");
+  document.getElementById("edit-producto").value    = String(lead.producto || "");
+  document.getElementById("edit-temperatura").value = String(lead.temperatura || "");
+  document.getElementById("edit-referencia").value  = String(lead.referencia || "");
+  document.getElementById("edit-comentarios").value = String(lead.comentarios || "");
   document.getElementById("modal-fecha-display").textContent = `📅 Registrado el ${formatFecha(lead.fecha)}`;
 
   ["nombre","telefono","edad","producto"].forEach(f => {
@@ -938,14 +945,15 @@ async function guardarEdicion() {
   text.style.display   = "none";
   loader.style.display = "flex";
 
+  // OPTIMIZACIÓN: Casting explícito a string
   const datosEditados = {
-    nombre:      document.getElementById("edit-nombre").value.trim(),
-    telefono:    document.getElementById("edit-telefono").value.replace(/\s/g, ""),
-    edad:        document.getElementById("edit-edad").value,
-    producto:    document.getElementById("edit-producto").value,
-    temperatura: document.getElementById("edit-temperatura").value,
-    referencia:  document.getElementById("edit-referencia").value.trim(),
-    comentarios: document.getElementById("edit-comentarios").value.trim(),
+    nombre:      String(document.getElementById("edit-nombre").value.trim()),
+    telefono:    String(document.getElementById("edit-telefono").value.replace(/\s/g, "")),
+    edad:        String(document.getElementById("edit-edad").value),
+    producto:    String(document.getElementById("edit-producto").value),
+    temperatura: String(document.getElementById("edit-temperatura").value),
+    referencia:  String(document.getElementById("edit-referencia").value.trim()),
+    comentarios: String(document.getElementById("edit-comentarios").value.trim()),
   };
 
   try {
@@ -958,6 +966,7 @@ async function guardarEdicion() {
     showToastEdit();
 
   } catch (error) {
+    console.error("Detalle DB (Edición):", error);
     alert("Error al guardar. Verifica tu conexión e intenta de nuevo.");
   } finally {
     btn.disabled         = false;
@@ -1848,7 +1857,6 @@ async function abrirWaModal(lead) {
   const btnEditar = document.querySelector(".wa-btn-editar");
   if (btnEditar) btnEditar.style.visibility = "hidden";
 
-  // Consultar el mensaje base del asesor
   const usuario = leerSesion()?.usuario || "";
   try {
     const { data: dbUser } = await supabaseClient.from('usuarios').select('mensaje_whatsapp').eq('usuario', usuario).single();
@@ -1857,7 +1865,6 @@ async function abrirWaModal(lead) {
     _waMensajeBase = "";
   }
 
-  // Consultar el detalle del producto seleccionado
   try {
     const { data: prodData } = await supabaseClient
       .from('detalles_producto')
@@ -1962,7 +1969,7 @@ function closeWaModal(event) {
    PROYECCIÓN (Supabase - Optimizada)
 ══════════════════════════════════════════════ */
 let proy_filasCount = 0;
-let _proy_usuariosAdmin = []; // Cache de usuarios para mapeo de nombres en vista Admin
+let _proy_usuariosAdmin = []; 
 
 function proy_fechaHoyLima() {
   const now   = new Date();
@@ -2020,7 +2027,6 @@ function proy_eliminarFila(idx) {
   if (el) el.remove();
 }
 
-// NUEVO: Validación estricta, retorna null si falta algún nombre
 function proy_leerFilas() {
   const filas = [];
   let hasErrors = false;
@@ -2037,18 +2043,18 @@ function proy_leerFilas() {
     } else {
       if(nombreInput) nombreInput.classList.remove("invalid");
       filas.push({
-        usuario:     leerSesion()?.usuario || "",
-        dia:         proy_fechaHoyLima(),
-        nombre:      nombreVal,
-        densidad:    document.getElementById("proy-densidad-" + id)?.value || "1",
-        producto:    document.getElementById("proy-producto-" + id)?.value || "",
-        estado:      document.getElementById("proy-estado-"   + id)?.value || "",
-        hora:        horaDisplay, 
+        usuario:     String(leerSesion()?.usuario || ""),
+        dia:         String(proy_fechaHoyLima()),
+        nombre:      String(nombreVal),
+        densidad:    String(document.getElementById("proy-densidad-" + id)?.value || "1"),
+        producto:    String(document.getElementById("proy-producto-" + id)?.value || ""),
+        estado:      String(document.getElementById("proy-estado-"   + id)?.value || ""),
+        hora:        String(horaDisplay), 
       });
     }
   });
 
-  if (hasErrors) return null; // Detiene el guardado si hay errores
+  if (hasErrors) return null; 
   return filas;
 }
 
@@ -2073,7 +2079,7 @@ async function proy_init() {
     document.getElementById("proy-loading").style.display = "none";
 
     if (esAdmin) {
-      const { data: todosUsuarios } = await supabaseClient.from('usuarios').select('*');
+      const { data: todosUsuarios } = await supabaseClient.from('usuarios').select('*').limit(1000);
       _proy_usuariosAdmin = todosUsuarios || [];
       document.getElementById("proy-admin-view").style.display = "block";
       proy_renderAdmin(proyecciones || [], _proy_usuariosAdmin);
@@ -2094,7 +2100,8 @@ async function proy_init() {
         proy_agregarFila();
       }
     }
-  } catch {
+  } catch (error) {
+    console.error("Detalle DB (Cargar Proyección):", error);
     document.getElementById("proy-loading").style.display = "none";
     if (!esAdmin) {
       document.getElementById("proy-asesor-view").style.display = "block";
@@ -2142,7 +2149,6 @@ function proy_renderAdmin(data, todosUsuarios = []) {
   const totalUnidades = data.reduce((sum, f) => sum + (parseInt(f.densidad) || 0), 0);
   document.getElementById("proy-total-unidades").textContent = totalUnidades;
 
-  // Mapa para traducir el "usuario" (login) al "agente" (nombre real)
   const mapaAgentes = {};
   todosUsuarios.forEach(u => {
     mapaAgentes[u.usuario] = u.agente || u.usuario;
@@ -2150,14 +2156,14 @@ function proy_renderAdmin(data, todosUsuarios = []) {
 
   const porAsesor = {};
   data.forEach(f => {
-    const key = f.usuario || "—"; // Agrupamos por el ID único de login
+    const key = f.usuario || "—"; 
     if (!porAsesor[key]) porAsesor[key] = [];
     porAsesor[key].push(f);
   });
 
   const asesoresRegistrados = todosUsuarios
     .filter(u => (u.rol||"").toLowerCase() !== "administrador")
-    .map(u => u.usuario); // Usamos el ID único de login
+    .map(u => u.usuario); 
 
   const todosAsesores = [...new Set([ ...Object.keys(porAsesor), ...asesoresRegistrados ])];
 
@@ -2173,7 +2179,7 @@ function proy_renderAdmin(data, todosUsuarios = []) {
   enviaron.forEach(usuarioId => {
     const filas = porAsesor[usuarioId];
     const totalAsesor = filas.reduce((s, f) => s + (parseInt(f.densidad)||0), 0);
-    const nombreAgente = mapaAgentes[usuarioId] || usuarioId; // Mostramos el nombre bonito
+    const nombreAgente = mapaAgentes[usuarioId] || usuarioId; 
 
     html += `<div class="proy-admin-asesor">
       <div class="proy-admin-asesor-header">
@@ -2229,7 +2235,6 @@ function proy_estadoBadge(estado) {
   return `<span style="display:inline-block;padding:3px 10px;border-radius:100px;font-size:0.75rem;font-weight:700;background:${c.bg};color:${c.color}">${estado}</span>`;
 }
 
-// NUEVO: Guardado robusto con sistema de Rollback
 async function proy_guardar() {
   const btn    = document.getElementById("proy-btn-save");
   const text   = btn.querySelector(".btn-text");
@@ -2239,7 +2244,7 @@ async function proy_guardar() {
   
   if (filas === null) {
     alert("Por favor, completa el nombre en todos los prospectos de tu proyección.");
-    return; // Sale sin bloquear el botón
+    return; 
   }
   if (filas.length === 0) {
     alert("Agrega al menos un prospecto antes de guardar.");
@@ -2252,13 +2257,11 @@ async function proy_guardar() {
   const fecha = proy_fechaHoyLima();
 
   try {
-    // 1. Respaldamos los datos antiguos por si algo falla
     const { data: oldData } = await supabaseClient.from('proyeccion')
       .select('*')
       .eq('usuario', usuario)
       .eq('dia', fecha);
 
-    // 2. Borramos los registros actuales
     const { error: delErr } = await supabaseClient.from('proyeccion')
       .delete()
       .eq('usuario', usuario)
@@ -2266,11 +2269,9 @@ async function proy_guardar() {
       
     if (delErr) throw delErr;
     
-    // 3. Insertamos los nuevos
     const { error: insErr } = await supabaseClient.from('proyeccion').insert(filas);
     
     if (insErr) {
-      // ROLLBACK: Si la inserción falló, restauramos los datos antiguos
       if (oldData && oldData.length > 0) {
         const rollbackData = oldData.map(r => { const {id, ...rest} = r; return rest; });
         await supabaseClient.from('proyeccion').insert(rollbackData);
@@ -2278,7 +2279,6 @@ async function proy_guardar() {
       throw insErr;
     }
 
-    // Éxito
     const toast = document.getElementById("toast");
     if (toast) {
       toast.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> ¡Proyección guardada!`;
@@ -2291,7 +2291,7 @@ async function proy_guardar() {
     proy_renderPreview(filas);
 
   } catch (error) {
-    console.error(error);
+    console.error("Detalle DB (Guardar Proyección):", error);
     alert("Error al guardar la proyección. Tu trabajo anterior está seguro. Revisa tu conexión e intenta de nuevo.");
   } finally {
     btn.disabled=false; text.style.display="inline"; loader.style.display="none";
