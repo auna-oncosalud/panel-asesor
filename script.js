@@ -3,8 +3,8 @@
    ══════════════════════════════════════════════ */
 
 // ─── CONFIGURACIÓN DE SUPABASE ───
-const SUPABASE_URL = 'https://xqjhywbhwrmffkmvkxki.supabase.co'; // REEMPLAZAR
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxamh5d2Jod3JtZmZrbXZreGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTQzNzgsImV4cCI6MjA5MjM3MDM3OH0.4RRSC4gOCnZTuRC0HI6JEhr301xFRiFmYhFpiKxHG2M'; // REEMPLAZAR
+const SUPABASE_URL = 'https://xqjhywbhwrmffkmvkxki.supabase.co'; // REEMPLAZAR CON TU URL
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxamh5d2Jod3JtZmZrbXZreGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTQzNzgsImV4cCI6MjA5MjM3MDM3OH0.4RRSC4gOCnZTuRC0HI6JEhr301xFRiFmYhFpiKxHG2M'; // REEMPLAZAR CON TU ANON KEY
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -526,9 +526,15 @@ function aplicarFiltros() {
       const b = getLimaBounds("mes");
       fechaOk = fechaLead ? fechaLead >= b.ini && fechaLead <= b.fin : false;
     } else if (activeQuickFilter === "rango" && (desde || hasta)) {
-      if (desde && fechaLead) fechaOk = fechaOk && fechaLead >= new Date(desde + "T05:00:00Z");
-      if (hasta && fechaLead) fechaOk = fechaOk && fechaLead <= new Date(hasta + "T28:59:59Z");
-      if (!fechaLead) fechaOk = false;
+      if (desde && fechaLead) {
+        const [y, m, d] = desde.split("-").map(Number);
+        fechaOk = fechaOk && fechaLead >= new Date(Date.UTC(y, m - 1, d, 5, 0, 0, 0));
+      }
+      if (hasta && fechaLead) {
+        const [y, m, d] = hasta.split("-").map(Number);
+        fechaOk = fechaOk && fechaLead <= new Date(Date.UTC(y, m - 1, d, 28, 59, 59, 999));
+      }
+      if (!fechaLead && (desde || hasta)) fechaOk = false;
     }
 
     return asesorOk && textoOk && fechaOk;
@@ -655,8 +661,14 @@ function getLeadsFiltradosParaExportar() {
     }
     if (exportPeriod === "rango") {
       let ok = true;
-      if (desde && fechaLead) ok = ok && fechaLead >= new Date(desde + "T05:00:00Z");
-      if (hasta && fechaLead) ok = ok && fechaLead <= new Date(hasta + "T28:59:59Z");
+      if (desde && fechaLead) {
+        const [y, m, d] = desde.split("-").map(Number);
+        ok = ok && fechaLead >= new Date(Date.UTC(y, m - 1, d, 5, 0, 0, 0));
+      }
+      if (hasta && fechaLead) {
+        const [y, m, d] = hasta.split("-").map(Number);
+        ok = ok && fechaLead <= new Date(Date.UTC(y, m - 1, d, 28, 59, 59, 999));
+      }
       if (!fechaLead && (desde || hasta)) ok = false;
       return ok;
     }
@@ -945,7 +957,6 @@ async function guardarEdicion() {
   text.style.display   = "none";
   loader.style.display = "flex";
 
-  // OPTIMIZACIÓN: Casting explícito a string
   const datosEditados = {
     nombre:      String(document.getElementById("edit-nombre").value.trim()),
     telefono:    String(document.getElementById("edit-telefono").value.replace(/\s/g, "")),
@@ -1163,8 +1174,14 @@ function getLeadsParaStats() {
       const b = getLimaBounds("mes");
       fechaOk = fl ? fl >= b.ini && fl <= b.fin : false;
     } else if (currentStatsPeriod === "rango") {
-      if (desde && fl) fechaOk = fechaOk && fl >= new Date(desde + "T05:00:00Z");
-      if (hasta && fl) fechaOk = fechaOk && fl <= new Date(hasta + "T28:59:59Z");
+      if (desde && fl) {
+        const [y, m, d] = desde.split("-").map(Number);
+        fechaOk = fechaOk && fl >= new Date(Date.UTC(y, m - 1, d, 5, 0, 0, 0));
+      }
+      if (hasta && fl) {
+        const [y, m, d] = hasta.split("-").map(Number);
+        fechaOk = fechaOk && fl <= new Date(Date.UTC(y, m - 1, d, 28, 59, 59, 999));
+      }
       if (!fl && (desde || hasta)) fechaOk = false;
     }
 
@@ -2079,7 +2096,7 @@ async function proy_init() {
     document.getElementById("proy-loading").style.display = "none";
 
     if (esAdmin) {
-      const { data: todosUsuarios } = await supabaseClient.from('usuarios').select('*').limit(1000);
+      const { data: todosUsuarios } = await supabaseClient.from('usuarios').select('*').limit(10000);
       _proy_usuariosAdmin = todosUsuarios || [];
       document.getElementById("proy-admin-view").style.display = "block";
       proy_renderAdmin(proyecciones || [], _proy_usuariosAdmin);
