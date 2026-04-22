@@ -3,10 +3,9 @@
    ══════════════════════════════════════════════ */
 
 // ─── CONFIGURACIÓN DE SUPABASE ───
-const SUPABASE_URL = 'https://xqjhywbhwrmffkmvkxki.supabase.co'; // REEMPLAZAR CON TU URL
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhxamh5d2Jod3JtZmZrbXZreGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3OTQzNzgsImV4cCI6MjA5MjM3MDM3OH0.4RRSC4gOCnZTuRC0HI6JEhr301xFRiFmYhFpiKxHG2M'; // REEMPLAZAR CON TU ANON KEY
+const SUPABASE_URL = 'https://TU_PROYECTO.supabase.co'; // REEMPLAZAR CON TU URL
+const SUPABASE_KEY = 'TU_ANON_KEY'; // REEMPLAZAR CON TU ANON KEY
 
-// Instancia de Supabase (usamos supabaseClient para evitar conflictos con el CDN)
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ─── Todos los leads (cache para búsqueda) ───
@@ -1867,7 +1866,7 @@ async function abrirWaModal(lead) {
       .single();
     window._ultimoLead.detalle_producto = prodData?.detalle || "";
   } catch {
-    window._ultimoLead.detalle_producto = ""; // En caso de que no exista en la tabla
+    window._ultimoLead.detalle_producto = ""; 
   }
 
   document.getElementById("wa-mensaje").value = _waMensajeBase;
@@ -1960,9 +1959,10 @@ function closeWaModal(event) {
 }
 
 /* ══════════════════════════════════════════════
-   PROYECCIÓN (Supabase)
+   PROYECCIÓN (Supabase - Optimizada)
 ══════════════════════════════════════════════ */
 let proy_filasCount = 0;
+let _proy_usuariosAdmin = []; // Cache de usuarios para mapeo de nombres en vista Admin
 
 function proy_fechaHoyLima() {
   const now   = new Date();
@@ -2020,22 +2020,36 @@ function proy_eliminarFila(idx) {
   if (el) el.remove();
 }
 
+// NUEVO: Validación estricta, retorna null si falta algún nombre
 function proy_leerFilas() {
   const filas = [];
+  let hasErrors = false;
+
   document.querySelectorAll(".proy-fila").forEach(fila => {
     const id = fila.id.replace("proy-fila-","");
+    const nombreInput = document.getElementById("proy-nombre-" + id);
+    const nombreVal = nombreInput?.value.trim() || "";
     const horaDisplay = document.getElementById("proy-hora-" + id)?.value || "1 pm";
-    filas.push({
-      usuario:     leerSesion()?.usuario || "",
-      dia:         proy_fechaHoyLima(),
-      nombre:      document.getElementById("proy-nombre-"   + id)?.value.trim() || "",
-      densidad:    document.getElementById("proy-densidad-" + id)?.value || "1",
-      producto:    document.getElementById("proy-producto-" + id)?.value || "",
-      estado:      document.getElementById("proy-estado-"   + id)?.value || "",
-      hora:        horaDisplay, 
-    });
+    
+    if (!nombreVal) {
+      if(nombreInput) nombreInput.classList.add("invalid");
+      hasErrors = true;
+    } else {
+      if(nombreInput) nombreInput.classList.remove("invalid");
+      filas.push({
+        usuario:     leerSesion()?.usuario || "",
+        dia:         proy_fechaHoyLima(),
+        nombre:      nombreVal,
+        densidad:    document.getElementById("proy-densidad-" + id)?.value || "1",
+        producto:    document.getElementById("proy-producto-" + id)?.value || "",
+        estado:      document.getElementById("proy-estado-"   + id)?.value || "",
+        hora:        horaDisplay, 
+      });
+    }
   });
-  return filas.filter(f => f.nombre);
+
+  if (hasErrors) return null; // Detiene el guardado si hay errores
+  return filas;
 }
 
 async function proy_init() {
@@ -2060,8 +2074,9 @@ async function proy_init() {
 
     if (esAdmin) {
       const { data: todosUsuarios } = await supabaseClient.from('usuarios').select('*');
+      _proy_usuariosAdmin = todosUsuarios || [];
       document.getElementById("proy-admin-view").style.display = "block";
-      proy_renderAdmin(proyecciones || [], todosUsuarios || []);
+      proy_renderAdmin(proyecciones || [], _proy_usuariosAdmin);
     } else {
       const usuario  = leerSesion()?.usuario || "";
       const misFilas = (proyecciones || []).filter(f => (f.usuario||"").toLowerCase() === usuario.toLowerCase());
@@ -2127,35 +2142,43 @@ function proy_renderAdmin(data, todosUsuarios = []) {
   const totalUnidades = data.reduce((sum, f) => sum + (parseInt(f.densidad) || 0), 0);
   document.getElementById("proy-total-unidades").textContent = totalUnidades;
 
+  // Mapa para traducir el "usuario" (login) al "agente" (nombre real)
+  const mapaAgentes = {};
+  todosUsuarios.forEach(u => {
+    mapaAgentes[u.usuario] = u.agente || u.usuario;
+  });
+
   const porAsesor = {};
   data.forEach(f => {
-    const key = f.usuario || "—";
+    const key = f.usuario || "—"; // Agrupamos por el ID único de login
     if (!porAsesor[key]) porAsesor[key] = [];
     porAsesor[key].push(f);
   });
 
   const asesoresRegistrados = todosUsuarios
     .filter(u => (u.rol||"").toLowerCase() !== "administrador")
-    .map(u => u.usuario || "—");
+    .map(u => u.usuario); // Usamos el ID único de login
 
   const todosAsesores = [...new Set([ ...Object.keys(porAsesor), ...asesoresRegistrados ])];
 
   let html = "";
   const enviaron    = todosAsesores.filter(a => porAsesor[a]);
-  const noEnviaron  = todosAsesores.filter(a => !porAsesor[a]);
+  const noEnviaron  = todosAsesores.filter(a => !porAsesor[a] && a !== "—");
 
   if (enviaron.length === 0 && noEnviaron.length === 0) {
     wrap.innerHTML = `<div class="empty-state" style="padding:3rem"><p>No hay proyecciones registradas para hoy.</p></div>`;
     return;
   }
 
-  enviaron.forEach(asesor => {
-    const filas = porAsesor[asesor];
+  enviaron.forEach(usuarioId => {
+    const filas = porAsesor[usuarioId];
     const totalAsesor = filas.reduce((s, f) => s + (parseInt(f.densidad)||0), 0);
+    const nombreAgente = mapaAgentes[usuarioId] || usuarioId; // Mostramos el nombre bonito
+
     html += `<div class="proy-admin-asesor">
       <div class="proy-admin-asesor-header">
-        <div class="proy-admin-avatar">${asesor.charAt(0).toUpperCase()}</div>
-        <span class="proy-admin-nombre">${asesor}</span>
+        <div class="proy-admin-avatar">${nombreAgente.charAt(0).toUpperCase()}</div>
+        <span class="proy-admin-nombre">${nombreAgente}</span>
         <span class="proy-admin-badge enviado">✓ Enviado · ${totalAsesor} unidad${totalAsesor!==1?"es":""}</span>
       </div>
       <div style="overflow-x:auto">
@@ -2179,12 +2202,15 @@ function proy_renderAdmin(data, todosUsuarios = []) {
     html += `<div class="proy-pendientes-wrap">
       <p class="proy-pendientes-title">⏳ Sin proyección hoy</p>
       <div class="proy-pendientes-list">
-        ${noEnviaron.map(a => `
-        <div class="proy-pendiente-item">
-          <div class="proy-admin-avatar" style="background:var(--slate-200);color:var(--slate-500)">${a.charAt(0).toUpperCase()}</div>
-          <span class="proy-admin-nombre" style="color:var(--slate-500)">${a}</span>
-          <span class="proy-admin-badge pendiente">Sin enviar</span>
-        </div>`).join("")}
+        ${noEnviaron.map(usuarioId => {
+          const nombreAgente = mapaAgentes[usuarioId] || usuarioId;
+          return `
+          <div class="proy-pendiente-item">
+            <div class="proy-admin-avatar" style="background:var(--slate-200);color:var(--slate-500)">${nombreAgente.charAt(0).toUpperCase()}</div>
+            <span class="proy-admin-nombre" style="color:var(--slate-500)">${nombreAgente}</span>
+            <span class="proy-admin-badge pendiente">Sin enviar</span>
+          </div>`
+        }).join("")}
       </div>
     </div>`;
   }
@@ -2203,30 +2229,56 @@ function proy_estadoBadge(estado) {
   return `<span style="display:inline-block;padding:3px 10px;border-radius:100px;font-size:0.75rem;font-weight:700;background:${c.bg};color:${c.color}">${estado}</span>`;
 }
 
+// NUEVO: Guardado robusto con sistema de Rollback
 async function proy_guardar() {
   const btn    = document.getElementById("proy-btn-save");
   const text   = btn.querySelector(".btn-text");
   const loader = btn.querySelector(".btn-loader");
-  btn.disabled = true; text.style.display="none"; loader.style.display="flex";
-
+  
   const filas = proy_leerFilas();
+  
+  if (filas === null) {
+    alert("Por favor, completa el nombre en todos los prospectos de tu proyección.");
+    return; // Sale sin bloquear el botón
+  }
   if (filas.length === 0) {
-    alert("Agrega al menos un prospecto con nombre antes de guardar.");
-    btn.disabled=false; text.style.display="inline"; loader.style.display="none";
+    alert("Agrega al menos un prospecto antes de guardar.");
     return;
   }
+
+  btn.disabled = true; text.style.display="none"; loader.style.display="flex";
 
   const usuario = leerSesion()?.usuario || "";
   const fecha = proy_fechaHoyLima();
 
   try {
-    // Borramos la proyección anterior de este usuario para el día de hoy
-    await supabaseClient.from('proyeccion').delete().eq('usuario', usuario).eq('dia', fecha);
-    
-    // Insertamos las nuevas filas
-    const { error } = await supabaseClient.from('proyeccion').insert(filas);
-    if (error) throw error;
+    // 1. Respaldamos los datos antiguos por si algo falla
+    const { data: oldData } = await supabaseClient.from('proyeccion')
+      .select('*')
+      .eq('usuario', usuario)
+      .eq('dia', fecha);
 
+    // 2. Borramos los registros actuales
+    const { error: delErr } = await supabaseClient.from('proyeccion')
+      .delete()
+      .eq('usuario', usuario)
+      .eq('dia', fecha);
+      
+    if (delErr) throw delErr;
+    
+    // 3. Insertamos los nuevos
+    const { error: insErr } = await supabaseClient.from('proyeccion').insert(filas);
+    
+    if (insErr) {
+      // ROLLBACK: Si la inserción falló, restauramos los datos antiguos
+      if (oldData && oldData.length > 0) {
+        const rollbackData = oldData.map(r => { const {id, ...rest} = r; return rest; });
+        await supabaseClient.from('proyeccion').insert(rollbackData);
+      }
+      throw insErr;
+    }
+
+    // Éxito
     const toast = document.getElementById("toast");
     if (toast) {
       toast.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> ¡Proyección guardada!`;
@@ -2238,8 +2290,9 @@ async function proy_guardar() {
     document.getElementById("proy-preview-view").style.display = "block";
     proy_renderPreview(filas);
 
-  } catch {
-    alert("Error al guardar la proyección. Intenta de nuevo.");
+  } catch (error) {
+    console.error(error);
+    alert("Error al guardar la proyección. Tu trabajo anterior está seguro. Revisa tu conexión e intenta de nuevo.");
   } finally {
     btn.disabled=false; text.style.display="inline"; loader.style.display="none";
   }
@@ -2253,10 +2306,15 @@ function proy_descargarExcel() {
   }
 
   const hoy = proy_fechaHoyLima();
+  const mapaAgentes = {};
+  _proy_usuariosAdmin.forEach(u => {
+    mapaAgentes[u.usuario] = u.agente || u.usuario;
+  });
 
   try {
     const filas = data.map(f => ({
-      "Asesor":   String(f.usuario || ""),
+      "Asesor":   String(mapaAgentes[f.usuario] || f.usuario || ""),
+      "Usuario":  String(f.usuario || ""),
       "Nombre":   String(f.nombre   || ""),
       "Densidad": parseInt(f.densidad) || 0,
       "Producto": String(f.producto || ""),
@@ -2265,9 +2323,9 @@ function proy_descargarExcel() {
     }));
 
     const ws = XLSX.utils.json_to_sheet(filas, {
-      header: ["Asesor","Nombre","Densidad","Producto","Estado","Hora"]
+      header: ["Asesor","Usuario","Nombre","Densidad","Producto","Estado","Hora"]
     });
-    ws["!cols"] = [{ wch: 18 }, { wch: 22 }, { wch: 10 }, { wch: 20 }, { wch: 14 }, { wch: 10 }];
+    ws["!cols"] = [{ wch: 18 }, { wch: 14 }, { wch: 22 }, { wch: 10 }, { wch: 20 }, { wch: 14 }, { wch: 10 }];
 
     const wb = XLSX.utils.book_new();
     const sheetName = `Proyeccion ${hoy}`.replace(/\//g,"-").slice(0, 31);
