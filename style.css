@@ -1104,7 +1104,7 @@ form { padding: 2rem; }
 
 @keyframes bounce {
   0%, 80%, 100% { transform: translateY(0); }
-  40%            { transform: translateY(-10px); }
+  40%           { transform: translateY(-10px); }
 }
 
 /* ══════════════════════════════════════════════
@@ -3547,7 +3547,44 @@ textarea::placeholder { color: var(--slate-300) !important; opacity: 1; }
 }
 
 /* Admin table */
-/* ── OLD proy-admin-asesor removed — replaced by card dashboard below ── */
+.proy-admin-asesor { border-bottom: 1px solid var(--slate-100); }
+.proy-admin-asesor:last-child { border-bottom: none; }
+
+.proy-admin-asesor-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 1.25rem;
+  background: var(--slate-50);
+  border-bottom: 1px solid var(--slate-100);
+}
+
+.proy-admin-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--blue-600), var(--blue-400));
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.proy-admin-nombre {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--blue-800);
+  flex: 1;
+}
+
+.proy-admin-badge {
+  border-radius: 100px;
+  padding: 2px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--blue-100);
+  color: var(--blue-700);
+}
 
 /* Responsive */
 @media (max-width: 700px) {
@@ -3684,327 +3721,34 @@ textarea::placeholder { color: var(--slate-300) !important; opacity: 1; }
   border-top: 1px solid var(--slate-100);
 }
 
-/* ══════════════════════════════════════════════
-   PROYECCIÓN ADMIN — DASHBOARD
-══════════════════════════════════════════════ */
-
-/* Alerta pendientes — barra superior */
-.proy-alert-pendientes {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin: 0.875rem 1rem 0;
-  padding: 0.75rem 1rem;
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
-  border-radius: var(--radius-md);
-  animation: fadeUp 0.3s ease;
-}
-
-.proy-alert-left {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  flex: 1;
-  min-width: 0;
-}
-
-.proy-alert-icon { font-size: 1.25rem; flex-shrink: 0; line-height: 1.3; }
-
-.proy-alert-title {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #9a3412;
-  margin-bottom: 4px;
-}
-
-.proy-alert-names {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.proy-alert-name {
-  display: inline-block;
-  background: #ffedd5;
-  color: #c2410c;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 100px;
-  border: 1px solid #fed7aa;
-}
-
-/* KPI strip */
-.proy-kpi-strip {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  margin: 0.75rem 1rem 0;
-  background: var(--white);
-  border: 1.5px solid var(--slate-200);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-.proy-kpi-strip-item {
-  flex: 1;
-  padding: 0.75rem 1rem;
-  text-align: center;
-}
-
-.proy-kpi-strip-num {
-  font-size: 1.35rem;
-  font-weight: 800;
-  color: var(--blue-800);
-  line-height: 1;
-  margin-bottom: 3px;
-}
-
-.proy-kpi-strip-label {
-  font-size: 0.68rem;
-  font-weight: 600;
-  color: var(--slate-400);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.proy-kpi-strip-divider {
-  width: 1px;
-  height: 36px;
-  background: var(--slate-200);
-  flex-shrink: 0;
-}
-
-/* Dashboard grid de tarjetas */
-.proy-dashboard-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 0.625rem;
-  padding: 0.875rem 1rem;
-}
-
-/* Tarjeta de asesor — acordeón */
-.proy-asesor-card {
-  background: var(--white);
-  border: 1.5px solid var(--slate-200);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow var(--transition), border-color var(--transition);
-}
-
-.proy-asesor-card:hover { box-shadow: var(--shadow-md); }
-
-.proy-asesor-card--top {
-  border-color: #fbbf24;
-  box-shadow: 0 0 0 1px #fbbf2430, var(--shadow-sm);
-}
-
-/* Header del acordeón — clickeable */
-.proy-asesor-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.875rem;
-  padding: 0.875rem 1rem;
-  cursor: pointer;
-  user-select: none;
+/* ── Admin pendientes section ── */
+.proy-pendientes-wrap {
+  padding: 0.875rem 1.25rem;
   background: var(--slate-50);
-  transition: background var(--transition);
+  border-top: 1px solid var(--slate-100);
 }
-
-.proy-asesor-card--top .proy-asesor-card-header { background: #fffbeb; }
-
-.proy-asesor-card-header:hover { background: var(--blue-50); }
-.proy-asesor-card--top .proy-asesor-card-header:hover { background: #fef9c3; }
-
-.proy-asesor-card-left {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex: 1;
-  min-width: 0;
-}
-
-.proy-asesor-avatar {
-  width: 38px; height: 38px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--blue-600), var(--blue-400));
-  color: white;
-  font-size: 0.88rem;
-  font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-
-.proy-asesor-avatar--top {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-  font-size: 1.1rem;
-}
-
-.proy-asesor-info { flex: 1; min-width: 0; }
-
-.proy-asesor-nombre-card {
-  font-size: 0.92rem;
-  font-weight: 700;
-  color: var(--slate-900);
-  margin-bottom: 4px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.proy-top-badge {
-  display: inline-block;
-  background: #fef9c3;
-  color: #92400e;
-  font-size: 0.65rem;
-  font-weight: 700;
-  padding: 1px 7px;
-  border-radius: 100px;
-  border: 1px solid #fcd34d;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-
-.proy-asesor-mini-estados {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.proy-mini-estado {
-  font-size: 0.68rem;
-  font-weight: 600;
-  padding: 1px 7px;
-  border-radius: 100px;
-  white-space: nowrap;
-}
-
-.proy-asesor-card-right {
-  display: flex;
-  align-items: center;
-  gap: 0.875rem;
-  flex-shrink: 0;
-}
-
-.proy-asesor-unidades {
-  display: flex;
-  align-items: baseline;
-  gap: 2px;
-}
-
-.proy-unidades-num {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--blue-700);
-  line-height: 1;
-}
-
-.proy-unidades-label {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--blue-500);
-}
-
-.proy-asesor-prospectos {
-  font-size: 0.72rem;
+.proy-pendientes-title {
+  font-size: 0.72rem; font-weight: 700;
   color: var(--slate-400);
-  font-weight: 500;
-  white-space: nowrap;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  margin-bottom: 0.5rem;
+}
+.proy-pendientes-list { display: flex; flex-direction: column; gap: 6px; }
+.proy-pendiente-item {
+  display: flex; align-items: center; gap: 8px;
+  background: white;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-sm);
+  padding: 7px 12px;
 }
 
-.proy-card-chevron {
-  width: 16px; height: 16px;
-  color: var(--slate-400);
-  transition: transform 0.25s ease;
-  flex-shrink: 0;
-}
-
-/* Cuerpo del acordeón — oculto por defecto */
-.proy-asesor-card-body {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-  border-top: 0px solid var(--slate-100);
-}
-
-/* Estado abierto */
-.proy-asesor-card.open .proy-card-chevron { transform: rotate(180deg); }
-.proy-asesor-card.open .proy-asesor-card-body {
-  max-height: 1200px;
-  border-top-width: 1px;
-}
-
-/* Empty state del dashboard */
-.proy-empty-dashboard {
-  padding: 3rem 2rem;
-  text-align: center;
-}
-
-.proy-empty-icon {
-  width: 56px; height: 56px;
-  background: var(--slate-100);
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  margin: 0 auto 1rem;
-}
-
-.proy-empty-icon svg { width: 28px; height: 28px; color: var(--slate-400); }
-
-.proy-empty-title {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--slate-600);
-  margin-bottom: 4px;
-}
-
-.proy-empty-sub {
-  font-size: 0.82rem;
-  color: var(--slate-400);
-  line-height: 1.5;
-}
-
-/* Required asterisk */
-.required-tag {
-  color: var(--red-500);
-  font-weight: 700;
-  font-size: 0.85rem;
-  margin-left: 2px;
-}
-
-/* Badge variants legacy */
-.proy-admin-badge { border-radius: 100px; padding: 2px 10px; font-size: 0.72rem; font-weight: 700; background: var(--blue-100); color: var(--blue-700); }
+/* Badge variants */
 .proy-admin-badge.enviado { background: #dcfce7; color: #166534; }
 .proy-admin-badge.pendiente { background: var(--slate-100); color: var(--slate-400); }
 
-/* Legacy avatar para otras partes */
-.proy-admin-avatar {
-  width: 28px; height: 28px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--blue-600), var(--blue-400));
-  color: white;
-  font-size: 0.75rem;
-  font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-.proy-admin-nombre { font-size: 0.88rem; font-weight: 700; color: var(--blue-800); flex: 1; }
-
-/* Responsive dashboard */
-@media (max-width: 600px) {
-  .proy-kpi-strip { flex-wrap: wrap; }
-  .proy-kpi-strip-item { min-width: calc(50% - 1px); }
-  .proy-kpi-strip-divider:nth-child(4) { display: none; }
-  .proy-asesor-prospectos { display: none; }
-  .proy-asesor-card-right { gap: 0.5rem; }
-}
-
 /* Proyección admin download bar */
 .proy-admin-download-bar {
-  padding: 0.65rem 1rem;
+  padding: 0.65rem 1.25rem;
   border-bottom: 1px solid var(--slate-100);
   display: flex;
   justify-content: flex-end;
@@ -4020,3 +3764,5 @@ textarea::placeholder { color: var(--slate-300) !important; opacity: 1; }
   margin: 0;
   width: auto;
 }
+
+
