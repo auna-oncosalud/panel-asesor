@@ -2484,5 +2484,3 @@ function proy_descargarExcel() {
     alert("Error al generar el archivo. Intenta de nuevo.");
   }
 }
-
-
