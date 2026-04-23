@@ -2324,63 +2324,50 @@ function proy_renderAdmin(data, todosUsuarios = []) {
     return;
   }
 
-  // Renderizado de Tarjetas para Asesores con Proyección
   enviaron.forEach(usuarioId => {
     const filas = porAsesor[usuarioId];
     const totalAsesor = filas.reduce((s, f) => s + (parseInt(f.densidad)||0), 0);
     const nombreAgente = mapaAgentes[usuarioId] || usuarioId; 
 
-    html += `
-    <div class="proy-admin-asesor">
+    html += `<div class="proy-admin-asesor">
       <div class="proy-admin-asesor-header">
         <div class="proy-admin-avatar">${nombreAgente.charAt(0).toUpperCase()}</div>
         <span class="proy-admin-nombre">${nombreAgente}</span>
-        <span class="proy-total-badge">${totalAsesor} u.</span>
+        <span class="proy-admin-badge enviado">✓ Enviado · ${totalAsesor} unidad${totalAsesor!==1?"es":""}</span>
       </div>
-      <div class="proy-inner-table-wrap">
-        <table class="proy-inner-table">
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Prod.</th>
-              <th>Estado</th>
-              <th>H.</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${filas.map(f => `
-              <tr>
-                <td style="font-weight:600; color:var(--slate-800)">${f.nombre||"—"}</td>
-                <td><span class="badge-product ${getBadgeClass(f.producto)}" style="font-size:0.65rem; padding:2px 6px">${f.producto||"—"}</span></td>
-                <td>${proy_estadoBadge(f.estado)}</td>
-                <td style="color:var(--slate-400)">${f.hora||"—"}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
+      <div style="overflow-x:auto">
+      <table class="data-table">
+        <thead><tr><th>Nombre</th><th>Densidad</th><th>Producto</th><th>Estado</th><th>Hora</th></tr></thead>
+        <tbody>
+          ${filas.map(f => `<tr>
+            <td style="font-weight:600">${f.nombre||"—"}</td>
+            <td style="text-align:center">${f.densidad||"—"}</td>
+            <td><span class="badge-product ${getBadgeClass(f.producto)}">${f.producto||"—"}</span></td>
+            <td>${proy_estadoBadge(f.estado)}</td>
+            <td style="white-space:nowrap;color:var(--slate-500);font-size:0.82rem">${f.hora||"—"}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
       </div>
     </div>`;
   });
 
-  // Sección de pendientes (fuera de la cuadrícula principal o al final)
   if (noEnviaron.length > 0) {
-    // Agregamos un contenedor de ancho completo para los pendientes
-    html += `
-    <div class="proy-pendientes-wrap" style="grid-column: 1 / -1; margin-top: 1rem; border-radius: var(--radius-lg)">
-      <p class="proy-pendientes-title">⏳ Sin proyección hoy (${noEnviaron.length})</p>
-      <div class="proy-pendientes-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;">
+    html += `<div class="proy-pendientes-wrap">
+      <p class="proy-pendientes-title">⏳ Sin proyección hoy</p>
+      <div class="proy-pendientes-list">
         ${noEnviaron.map(usuarioId => {
           const nombreAgente = mapaAgentes[usuarioId] || usuarioId;
           return `
           <div class="proy-pendiente-item">
-            <div class="proy-admin-avatar" style="background:var(--slate-200);color:var(--slate-500); width:24px; height:24px; font-size:0.7rem">${nombreAgente.charAt(0).toUpperCase()}</div>
-            <span class="proy-admin-nombre" style="color:var(--slate-500); font-size:0.8rem">${nombreAgente}</span>
-          </div>`;
+            <div class="proy-admin-avatar" style="background:var(--slate-200);color:var(--slate-500)">${nombreAgente.charAt(0).toUpperCase()}</div>
+            <span class="proy-admin-nombre" style="color:var(--slate-500)">${nombreAgente}</span>
+            <span class="proy-admin-badge pendiente">Sin enviar</span>
+          </div>`
         }).join("")}
       </div>
     </div>`;
   }
-  
   wrap.innerHTML = html;
 }
 
