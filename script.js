@@ -18,7 +18,7 @@ let realtimeChannel = null; // Canal para WebSockets
    SESIÓN — localStorage con expiración 15 min
 ══════════════════════════════════════════════ */
 const SESSION_KEY = "auna_session";
-const SESSION_MINUTES = 15;
+const SESSION_MINUTES = 20;
 
 function guardarSesion(usuario, rol, agente) {
     const sesion = { usuario, rol, agente, expira: Date.now() + SESSION_MINUTES * 60 * 1000 };
